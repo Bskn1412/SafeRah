@@ -1,0 +1,145 @@
+//Backend
+npm install express mongoose cors argon2 jsonwebtoken axios
+npm install axios
+
+
+npm install mongodb
+import sodium from "libsodium-wrappers-sumo"; ///go to hell you dumb f***
+
+
+npm install otplib
+
+19/12/2025
+npm install express-rate-limit
+
+
+
+
+//Frontend
+npm install tailwindcss @tailwindcss/vite
+npm install @heroicons/react
+npm install @headlessui/react
+
+
+npm install bip39
+npm install qrcode
+
+19/12/2025
+npm install qrcode.react
+
+
+21/12/2025
+npm install @scure/bip39
+
+npm install vite-plugin-node-polyfills
+
+
+
+
+
+"use client"
+
+import React, { useState, useRef, useEffect } from "react";
+import { Transition } from "@headlessui/react"; // Smooth transitions
+import { Link } from "react-router-dom";
+
+export function Avatar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      {/* Avatar Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative w-12 h-12 rounded-full overflow-hidden flex items-center justify-center
+                   bg-gray-800 hover:bg-gray-900 transition-all duration-300
+                   hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] focus:outline-none cursor-pointer"
+      >
+        {/* Blur/Glow background */}
+        <div className="absolute inset-0 rounded-full filter blur-sm opacity-0 hover:opacity-100 transition-opacity duration-300 bg-grey"></div>
+
+        {/* Your SVG */}
+        <svg
+          width="24px"
+          height="24px"
+          viewBox="-2.4 -2.4 28.8 28.8"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="relative z-10"
+        >
+          <path
+            d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z"
+            stroke="#ffffff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M20.5899 22C20.5899 18.13 16.7399 15 11.9999 15C7.25991 15 3.40991 18.13 3.40991 22"
+            stroke="#ffffff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+
+      {/* Dropdown Menu */}
+      <Transition
+        show={isOpen}
+        enter="transition ease-out duration-200 transform"
+        enterFrom="opacity-0 -translate-y-2"
+        enterTo="opacity-100 translate-y-0"
+        leave="transition ease-in duration-150 transform"
+        leaveFrom="opacity-100 translate-y-0"
+        leaveTo="opacity-0 -translate-y-2"
+      >
+        <div
+          className="absolute right-0 mt-2 w-40 origin-top-right rounded-md bg-gray-800 border border-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-20"
+        >
+          <div className="py-1">
+            <Link
+              to="/login"
+              className="block px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/register"
+              className="block px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
+            >
+              Sign Up
+            </Link>
+            <Link
+              to="/help"
+              className="block px-4 py-2 text-sm text-white hover:bg-gray-700 transition-colors"
+            >
+              Help
+            </Link>
+          </div>
+        </div>
+      </Transition>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+//veo 3 first prompt
+"Create a 4K UHD, 16:9 cinematic intro for SafeRaho, optimized for desktop monitors. Begin with the SafeRaho logo appearing in a sleek, futuristic style with soft glow and light flare transitions. Show a digital file being uploaded into a high-tech, glowing vault, transforming into glowing, encrypted data blocks surrounded by holographic security shields. Illustrate fast, efficient encryption algorithms wrapping the file with dynamic neon energy streams and rotating digital rings. Highlight zero-knowledge protection with a floating shield labeled ‘No Admin Access’. Include a subtle holographic ‘Admin Access Denied’ shield over the vault. Use high-density neon blue and purple particle effects, volumetric lighting, glowing circuits, and transparent glass UI panels. Incorporate fast motion blur and smooth camera pans/zoom-ins to convey speed, efficiency, and enterprise-grade security. Maintain ultra-realistic photoreal quality throughout, with crisp details on vault surfaces, holographic elements, and data streams. End with the SafeRaho logo appearing again with cinematic glow, light flare, and smooth fade-out. Render at 60 FPS with HDR-level lighting, high-resolution particle effects, and no pixelation or aliasing, ensuring consistency and clarity on desktop displays. Include futuristic UI elements minimally, with holographic HUD overlays and subtle sci-fi interface panels."
