@@ -1,5 +1,3 @@
-// frontend/src/pages/SetupRecovery.jsx
-
 "use client";
 
 import { useState } from "react";
@@ -9,6 +7,7 @@ import {
   generateRecoveryPhrase,
   wrapMasterKeyWithRecovery
 } from "../crypto/recovery";
+import { Copy, Check } from "lucide-react";
 
 export default function SetupRecovery() {
   const [password, setPassword] = useState("");
@@ -17,37 +16,26 @@ export default function SetupRecovery() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  /* ----------------------------- */
-  /* Generate + Enable Recovery    */
-  /* ----------------------------- */
   const handleGenerate = async (e) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     try {
-      if (!password || password.length < 8) {
-        throw new Error("Password is required");
-      }
-
-      // 🔐 Unlock vault (ONLY source of truth)
       const vault = await ensureKeys(password);
 
       if (!vault || !vault.masterKey) {
         throw new Error("Unable to unlock vault");
       }
 
-      // 🔑 Generate recovery phrase
       const phrase = generateRecoveryPhrase();
       setMnemonic(phrase);
 
-      // 🔐 Wrap master key explicitly
       const wrapped = await wrapMasterKeyWithRecovery(
         vault.masterKey,
         phrase
       );
 
-      // ✅ Persist recovery metadata
       await api.post("/recovery/enable", wrapped);
 
     } catch (err) {
@@ -55,17 +43,17 @@ export default function SetupRecovery() {
       setError(err.message || "Recovery setup failed");
     } finally {
       setLoading(false);
-      // IMPORTANT: wipe password from memory
       setPassword("");
     }
   };
 
-  /* ----------------------------- */
-  /* Confirm + Continue            */
-  /* ----------------------------- */
   const handleContinue = () => {
     if (!confirmed) return;
     window.location.href = "/dashboard";
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(mnemonic);
   };
 
   const words =
@@ -81,16 +69,14 @@ export default function SetupRecovery() {
 
         <p className="text-sm text-gray-400 text-center">
           This recovery key is the ONLY way to recover your vault if you forget
-          your password. We cannot help you recover it.
+          your password. We cannot help you recover it. Store it offline securely.
         </p>
 
-        {/* ---------------- Password + Generate ---------------- */}
         {!mnemonic && (
           <form onSubmit={handleGenerate} className="space-y-4">
 
             <input
               type="password"
-              autoComplete="current-password"
               placeholder="Enter your account password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -113,19 +99,19 @@ export default function SetupRecovery() {
           </form>
         )}
 
-        {/* ---------------- Phrase Display ---------------- */}
         {mnemonic && (
           <>
             <div className="grid grid-cols-3 gap-2 bg-black p-4 rounded">
               {words.map((word, i) => (
-                <div
-                  key={i}
-                  className="text-center text-sm border p-2 rounded"
-                >
+                <div key={i} className="text-center text-sm border p-2 rounded">
                   {i + 1}. {word}
                 </div>
               ))}
             </div>
+
+            <button onClick={handleCopy} className="w-full py-2 bg-gray-600 text-white rounded flex items-center justify-center gap-2">
+              <Copy size={16} /> Copy Phrase
+            </button>
 
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -139,13 +125,12 @@ export default function SetupRecovery() {
             <button
               disabled={!confirmed}
               onClick={handleContinue}
-              className="w-full py-3 bg-emerald-500 text-black rounded font-semibold disabled:opacity-50"
+              className="w-full py-3 bg-emerald-500 text-black rounded font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Continue to Dashboard
+              <Check size={16} /> Continue to Dashboard
             </button>
           </>
         )}
-
       </div>
     </div>
   );

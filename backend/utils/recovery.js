@@ -18,7 +18,7 @@ export async function deriveRecoveryKey(mnemonic, salt) {
 
   const seed = await bip39.mnemonicToSeed(mnemonic);
   const key = crypto.scryptSync(
-    seed.slice(0, 32),
+    seed.subarray(0, 32),
     salt,
     sodium.crypto_aead_xchacha20poly1305_ietf_KEYBYTES,
     { N: 1 << 15, r: 8, p: 1 }

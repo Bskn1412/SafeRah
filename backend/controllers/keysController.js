@@ -7,6 +7,7 @@ export const getKeys = async (req, res) => {
   );
 
   if (!user || !user.encryptedMasterKey) {
+    console.log(`User ${req.user.id} has no stored keys.`);
     return res.json({ hasKeys: false });
   }
 
@@ -54,4 +55,5 @@ export const storeKeys = async (req, res) => {
   }
 
   res.json({ message: "Keys stored", hasKeys: true });
+  console.log(`User ${userId} stored/updated their keys.`);
 };

@@ -10,8 +10,8 @@ export function FeaturesSection() {
     {
       icon: Shield,
       title: "User File Protection",
-      desc: "Your files are encrypted end-to-end using military-grade AES-256 encryption. Only you hold the keys.",
-      features: ["AES-256 Encryption", "Zero-Knowledge Backend", "No Server Access"],
+      desc: "Your files are encrypted end-to-end using military-grade XChaCha20-Poly1305 encryption. Only you hold the keys.",
+      features: ["XChaCha20-Poly1305 Encryption", "Zero-Knowledge Backend", "No Server Access"],
       colorClass: "from-primary/10 to-secondary/10",
       borderColor: "hover:border-primary/50",
       hoverShadow: "hover:shadow-primary/10",

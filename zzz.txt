@@ -1,4 +1,4 @@
-//Backend
+/////////////////////////Backend//////////////////////////////////////////////
 npm install express mongoose cors argon2 jsonwebtoken axios
 npm install axios
 
@@ -15,7 +15,7 @@ npm install express-rate-limit
 
 
 
-//Frontend
+/////////////////////////Frontend////////////////////////////////////////////////
 npm install tailwindcss @tailwindcss/vite
 npm install @heroicons/react
 npm install @headlessui/react
@@ -32,6 +32,91 @@ npm install qrcode.react
 npm install @scure/bip39
 
 npm install vite-plugin-node-polyfills
+
+
+31/12/2025
+npm install jspdf
+
+
+01/02/2026
+Securing your data…
+We verify you’re eligible without seeing your data.
+We couldn’t verify your info. Try again, your data was not shared.
+
+
+
+
+
+
+
+
+Home screen copy ideas (military-inspired, UX-safe)
+Headline options
+
+“Your files. Fully secured. Zero exposure.”
+
+“Private storage, cleared for your eyes only.”
+
+“Mission-grade security for your most sensitive files.”
+
+“Store. Lock. Control.”
+
+“A secure perimeter for your digital assets.”
+
+Subhead examples
+
+“End-to-end encrypted storage with zero-knowledge access.”
+
+“We protect your files without ever seeing them.”
+
+“Verified access. Classified privacy.”
+
+
+
+
+
+Navigation labels (clean & cool)
+
+Vault
+
+Command
+
+Access Control
+
+Clearance
+
+Logs
+
+Integrity Check
+
+Security Status
+
+
+
+Background: #0F172A (deep navy)
+
+Surface cards: #1E293B
+
+Primary accent: #4B6F44 (military green)
+
+Secondary accent: #64748B
+
+Text primary: #E5E7EB
+
+Text secondary: #9CA3AF
+
+Warning: #D4A017
+
+
+
+
+
+
+By continuing you agree to our Terms of Use & Privacy Policy
+
+
+
+
 
 
 

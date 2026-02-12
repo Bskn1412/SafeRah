@@ -16,17 +16,24 @@ import { initGridFS } from "./config/gridfs.js";
 // import authRecovery from "./routes/authRecovery.js";
 
 import recoveryRoutes from "./routes/recovery.js";
+
+import sanityRoutes from "./routes/sanity_files.js";
 const app = express();
 
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));  // <-- REQUIRED for req.cookies
 app.use(cookieParser());  // ← THIS IS REQUIRED
 
-// CORS first
 app.use(cors({
-  origin: (origin, callback) => callback(null, origin || "*"),
-  credentials: true
+  origin: "http://localhost:5173", // exact frontend port
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+  exposedHeaders: ["Authorization"],
 }));
+
+
+
 
 await connectDB();
 await initGridFS();
@@ -38,15 +45,17 @@ app.use("/api/auth", authRoutes);
 
 
 // Add route
-app.use("/api/files", filesRoutes);
+// app.use("/api/files", filesRoutes);
 
+
+app.use("/api/files", sanityRoutes);
 // Authenticator recovery routes
 // app.use("/auth", authRecovery);
-app.use(express.json()); // for parsing application/json
+//app.use(express.json({ limit: "100mb" })); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // ✅ optional
 
 
-app.use("/api/recovery", recoveryRoutes);
+// app.use("/api/recovery", recoveryRoutes);
 
 
 // server.js — ADD THIS (temporary, delete later!)

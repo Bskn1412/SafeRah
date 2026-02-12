@@ -18,9 +18,14 @@ export default function Home() {
       <nav className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur supports-backdrop-filter:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <a href="#home"><div className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+        
+          <a href="#home" className="flex items-center">
+            <img src="/logo.png" alt="logo" className="h-20 w-20" />
+            <div className="text-3xl font-bold bg-linear-to-r from-primary to-secondary bg-clip-text text-transparent">
               SafeRaho
-            </div></a>
+            </div>
+          </a>
+
 
             <div className="hidden md:flex items-center gap-8">
               <a href="#home" className="text-lg text-foreground/70 hover:text-foreground transition-colors">
@@ -67,16 +72,16 @@ export default function Home() {
         </div>
 
         {/* TOP → BOTTOM Fade (clear → black) */}
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/0 via-black/20 to-black/80"></div>
+        <div className="absolute inset-0 -z-10 bg-linear-to-b from-black/0 via-black/20 to-black/80"></div>
 
 
         {/* HERO CONTENT (moved down with padding) */}
         <div className="relative z-10 w-full text-center px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="space-y-4">
            <h1 className="text-5xl md:text-7xl font-bold text-center tracking-tight">
-        <span className="bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+           <span className="bg-linear-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
           <AnimatedText
-            words={["SafeRaho", "Secure", "Sophisticated", "Simple", "Reliable", "Private", "Fast", "Encrypted", "Trusted"]}
+            words={["SafeRaho","Simple", "Encrypted", "Fast", "Trusted"]}
             typingSpeed={100}
             pause={1000}
           />
@@ -163,7 +168,7 @@ export default function Home() {
           </div>
 
           <div className="border-t border-border/40 pt-8 text-center text-foreground/60 text-sm">
-            <p>&copy; 2025 SafeRaho. All rights reserved.</p>
+              © {new Date().getFullYear()} SafeRaho. All rights reserved.
           </div>
         </div>
       </footer>

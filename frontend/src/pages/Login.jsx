@@ -1,11 +1,12 @@
+// frontend/src/pages/Login.jsx
+
 "use client";
 
 import { useState } from "react";
 import { api } from "../api";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { ensureKeys } from "../crypto/ensureKeys";
-import { createSession } from "../crypto/session";
+
 
 export default function Login() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -25,31 +26,40 @@ export default function Login() {
     // 1️⃣ Login → sets JWT cookie
     const res = await api.post("/auth/login", form);
 
-    // 2️⃣ Initialize / unlock vault keys (CRITICAL)
-    await ensureKeys(form.password, { createIfMissing: true });
+    console.log("Login response:", res.data);
 
-    // 3️⃣ Start client session (optional but fine)
-    await createSession();
+    // // 2️⃣ Unlock existing vault ONLY
+    // const result = await ensureKeys(form.password);
+
+    // console.log("Login key derivation result:", result);
+
+//    if (result?.wrongPassword) {
+//     console.log("Invalid password provided", result);
+//   throw new Error("Invalid password");
+// }
+
+    // 3️⃣ Start client session (fine)
+    // setSessionMasterKey(result.masterKey);
 
     setMsg({
       text: res.data.message || "Login successful!",
       type: "success",
     });
 
-    // 4️⃣ Go to dashboard
     setTimeout(() => {
       window.location.href = "/dashboard";
     }, 800);
 
   } catch (err) {
     setMsg({
-      text: err.response?.data?.message || "Login failed. Try again.",
+      text: err.message || err.response?.data?.message || "Login failed",
       type: "error",
     });
   } finally {
     setIsLoading(false);
   }
 };
+
 
   return (
     <div className="relative min-h-screen overflow-hidden flex items-center justify-center px-4 bg-black">

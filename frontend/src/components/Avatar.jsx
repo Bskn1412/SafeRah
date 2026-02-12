@@ -79,7 +79,7 @@ export function Avatar() {
       <div
         ref={menuRef}
         className={`
-          absolute right-0 mt-2 w-40 bg-gray-900 rounded-lg
+          absolute right-0 mt-8 w-60 bg-gray-900 rounded-lg
           border border-gray-700 shadow-lg overflow-hidden
           transition-all duration-700 ease-out
           ${isOpen
@@ -90,21 +90,21 @@ export function Avatar() {
         <Link
           to="/login"
           onClick={() => setIsOpen(false)}
-          className="block px-4 py-2 text-sm hover:bg-gray-700"
+          className="block p-4 text-xl hover:bg-gray-700"
         >
           Sign In
         </Link>
         <Link
           to="/register"
           onClick={() => setIsOpen(false)}
-          className="block px-4 py-2 text-sm hover:bg-gray-700"
+          className="block p-4 text-xl hover:bg-gray-700"
         >
           Sign Up
         </Link>
         <Link
           to="/help"
           onClick={() => setIsOpen(false)}
-          className="block px-4 py-2 text-sm hover:bg-gray-700"
+          className="block p-4 text-xl hover:bg-gray-700"
         >
           Help
         </Link>

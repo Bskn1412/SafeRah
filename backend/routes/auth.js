@@ -11,10 +11,21 @@ import {
   verifyOtp,
   resetPassword,
   recoveryMetadata,
+
+  verifyRecoveryPhrase,
+
   enableRecovery,
-  me
+  me,
+
+  verifyEmail,
+  resendOtp,
+
 } from "../controllers/authController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+
+import { recoveryAuth } from "../middleware/recoveryAuth.js";
+
+import { resetAuth } from "../middleware/resetAuth.js";
 
 // Rate limit for verify (5 attempts/5min)
 const verifyLimiter = rateLimit({
@@ -26,6 +37,8 @@ const verifyLimiter = rateLimit({
 const router = express.Router();
 
 router.post("/register", register);
+router.post("/verifyEmail", verifyEmail);
+router.post("/resend-otp", resendOtp);
 router.post("/login", login);
 
 // 2FA
@@ -34,12 +47,20 @@ router.post("/2fa/verify-setup", authMiddleware, verify2FASetup);
 
 // Forgot password
 router.post("/forgot-password", forgotPassword); // step 1: submit email
-router.post("/forgot-password/reset", authMiddleware, resetPassword);
-router.post("/forgot-password/verify", verifyLimiter, verifyOtp);
+router.post("/forgot-password/reset", resetAuth, resetPassword);
+router.post("/forgot-password/verify",  verifyOtp);
+
+router.post(
+  "/forgot-password/verify-recovery",
+  recoveryAuth,
+  verifyRecoveryPhrase
+);
 
 // Recovery (MUST be protected)
 router.post("/enable-recovery", authMiddleware, enableRecovery);
-router.get("/recovery-metadata", authMiddleware, recoveryMetadata);
+// Accept both normal and recovery tokens for recovery-metadata
+
+router.get("/recovery-metadata", resetAuth, recoveryMetadata);
 
 // Get current user
 router.get("/me", authMiddleware, me);

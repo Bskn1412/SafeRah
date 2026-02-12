@@ -1,0 +1,40 @@
+/* Toast container */
+.Toastify__toast {
+  background: rgba(2, 6, 23, 0.95);
+  color: #e5f9f6;
+  border-radius: 14px;
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 30px rgba(45, 212, 191, 0.15);
+  font-weight: 600;
+
+  width: 400px;       /* default is ~320px */
+  max-width: 90vw;    /* responsive for smaller screens */
+  min-width: 300px;
+}
+
+/* Success */
+.Toastify__toast--success {
+  border-color: #34d399;
+}
+
+/* Error */
+.Toastify__toast--error {
+  border-color: #ef4444;
+}
+
+/* Progress bar */
+.Toastify__progress-bar {
+  background: linear-gradient(
+    90deg,
+    #34d399,
+    #22d3ee
+  );
+}
+
+/* Close button */
+.Toastify__close-button {
+  color: #a7f3d0;
+}
+
+

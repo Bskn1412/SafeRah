@@ -1,13 +1,13 @@
 // src/crypto/ensureKeys.js
 import { getSodium } from "./sodium.js";
 import { api } from "../api";
-import { deriveKeyFromPassword } from "./argon.js";  // Removed unused u8ToB64, b64ToU8
-
-function toB64(u8) { return btoa(String.fromCharCode(...u8)); }
-function fromB64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+import { deriveKeyFromPassword } from "./argon.js";
 
 export async function ensureKeys(password, { createIfMissing = false } = {}) {
   const sodium = await getSodium();
+
+  const toB64 = (u8) => sodium.to_base64(u8);
+  const fromB64 = (s) => sodium.from_base64(s);
 
   // fetch existing stored blobs & flags
   const { data } = await api.get("/keys/get");
@@ -26,41 +26,16 @@ export async function ensureKeys(password, { createIfMissing = false } = {}) {
 
     const { key: passwordKey, salt } = await deriveKeyFromPassword(password);
 
-
-
-
-
-    // TEST ONLY: Re-derive to verify consistency (browser-safe check)
-    const urlParams = new URLSearchParams(window.location.search);
-    const isDebug = urlParams.get('debug') === 'true';
-    if (isDebug) {
-      const { key: passwordKey2 } = await deriveKeyFromPassword(password, salt);
-      const keysMatch = sodium.memcmp(passwordKey, passwordKey2);  // Secure byte comparison (constant-time)
-      if (!keysMatch) {
-        console.error('DERIVATION TEST FAILED: Keys do not match!');
-        throw new Error('Key derivation inconsistency - check argon.js');
-      }
-      console.log('DERIVATION TEST PASSED: Keys match (first 8 bytes hex for debug):', 
-                  Array.from(passwordKey.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(''));
-    }
-
-
-
-
-
-
-
-    
     // generate masterKey
-    const masterKey = sodium.randombytes_buf(32);
-    const mNonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+    const masterKey = await getRandomBuffer(32, sodium);
+    const mNonce = await getRandomBuffer(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, sodium);
     const encMaster = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
       masterKey, null, null, mNonce, passwordKey
     );
 
     // create X25519 keypair and encrypt private key with masterKey
     const kp = sodium.crypto_box_keypair();
-    const pNonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+    const pNonce = await getRandomBuffer(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES, sodium);
     const encPriv = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
       kp.privateKey, null, null, pNonce, masterKey
     );
@@ -74,34 +49,6 @@ export async function ensureKeys(password, { createIfMissing = false } = {}) {
       x25519PrivNonce: toB64(pNonce),
       publicKey: toB64(kp.publicKey),
     });
-
-    // TEST ONLY: Immediate roundtrip verify (simulate unlock) - only in creation path
-    if (isDebug) {
-      try {
-        // Re-fetch the just-stored data
-        const { data: freshData } = await api.get("/keys/get");
-        const freshSaltU8 = fromB64(freshData.argonSalt);
-        const { key: freshPasswordKey } = await deriveKeyFromPassword(password, freshSaltU8);
-        
-        let freshMasterKey;
-        try {
-          freshMasterKey = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-            null, fromB64(freshData.encryptedMasterKey), null, fromB64(freshData.masterNonce), freshPasswordKey
-          );
-        } catch (decryptErr) {
-          freshMasterKey = null;  // Treat SodiumError as failure
-        }
-        
-        if (!freshMasterKey || !sodium.memcmp(masterKey, freshMasterKey)) {
-          console.error('REGISTRATION ROUNDTRIP TEST FAILED: Decryption mismatch!');
-          throw new Error('Vault creation verification failed - check encryption/decryption');
-        }
-        console.log('REGISTRATION ROUNDTRIP TEST PASSED: Master key decrypts correctly');
-      } catch (testErr) {
-        console.error('Roundtrip test error (non-fatal in prod):', testErr);
-        // Don't throw—let creation succeed, but log for dev
-      }
-    }
 
     return { created: true, masterKey, privateKey: kp.privateKey, publicKey: kp.publicKey };
   }
@@ -120,8 +67,8 @@ export async function ensureKeys(password, { createIfMissing = false } = {}) {
     masterKey = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
       null, fromB64(data.encryptedMasterKey), null, fromB64(data.masterNonce), passwordKey
     );
-  } catch (decryptErr) {
-    masterKey = null;  // Treat SodiumError as wrong password
+  } catch {
+    masterKey = null;
   }
 
   if (!masterKey) {
@@ -134,8 +81,8 @@ export async function ensureKeys(password, { createIfMissing = false } = {}) {
     privateKey = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
       null, fromB64(data.encryptedX25519Priv), null, fromB64(data.x25519PrivNonce), masterKey
     );
-  } catch (decryptErr) {
-    // Rare: Master ok, but priv decrypt fails? Treat as wrong password/tampered
+  } catch {
+    // wrong password or tampered data
     return { wrongPassword: true };
   }
 
@@ -145,4 +92,18 @@ export async function ensureKeys(password, { createIfMissing = false } = {}) {
     privateKey,
     publicKey: fromB64(data.publicKey),
   };
+}
+
+// NEW: Helper to generate random buffer with retry
+async function getRandomBuffer(length, sodium) {
+  let buf = sodium.randombytes_buf(length);
+  if (!buf || !(buf instanceof Uint8Array) || buf.length !== length) {
+    console.warn('Random buffer invalid, retrying...');
+    await new Promise(r => setTimeout(r, 100));
+    buf = sodium.randombytes_buf(length);
+    if (!buf || buf.length !== length) {
+      throw new Error('Failed to generate random buffer');
+    }
+  }
+  return buf;
 }

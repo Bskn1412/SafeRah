@@ -229,3 +229,108 @@
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
+
+
+/* for password in dashboardd modal animations */
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fadeOutScale {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+}
+
+
+
+
+
+
+
+
+:root {
+  --bg-deep: #041418;
+  --bg-panel: #0b2f3a;
+
+  /* VIDEO-MATCHED MUTED OLIVE TEAL */
+  --flood-main: #737150;
+  --flood-dark: #5f6b60;
+  --flood-light: #8a8f6a;
+
+  --text-main: #ffffff;
+  --text-muted: #b7cfc7;
+}
+
+/* PANEL FLOOD */
+.flood-panel {
+  background: linear-gradient(
+    135deg,
+    var(--flood-dark),
+    var(--flood-main),
+    var(--flood-light)
+  );
+  box-shadow: 0 0 40px rgba(115, 113, 80, 0.55);
+}
+
+/* INPUTS */
+.cyber-input {
+  background: #071e26;
+  border: 1px solid rgba(183, 207, 199, 0.25);
+  color: var(--text-main);
+}
+.cyber-input:focus {
+  outline: none;
+  box-shadow: 0 0 10px rgba(183, 207, 199, 0.5);
+}
+
+/* BUTTON */
+.cyber-button {
+  background: linear-gradient(135deg, #9fd9c8, #6fae9a);
+  box-shadow: 0 0 20px rgba(159, 217, 200, 0.6);
+}
+
+
+
+
+/* for background image animation in dashboard*/
+@keyframes slowFloat {
+  0% { transform: scale(1.1) translateY(0px); }
+  50% { transform: scale(1.15) translateY(-10px); }
+  100% { transform: scale(1.1) translateY(0px); }
+}
+
+.animate-slowFloat {
+  animation: slowFloat 18s ease-in-out infinite;
+}
+
+
+/* Gradient background animation */
+@keyframes gradientMove {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradientMove {
+  background-size: 200% 200%;
+  animation: gradientMove 4s ease infinite;
+}

@@ -1,48 +1,94 @@
-// backend/routes/files.js
 import express from "express";
+import multer from "multer";
 import { ObjectId } from "mongodb";
 import { getBucket } from "../config/gridfs.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
-router.use(authMiddleware); // ← ALL routes protected
+router.use(authMiddleware);
 
-// UPLOAD
-router.post("/upload", async (req, res) => {
+/* ───────────────────────── Upload Config ───────────────────────── */
+
+const upload = multer({
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100 MB (REAL limit now)
+  },
+});
+
+/* ───────────────────────── UPLOAD (STREAMING) ───────────────────────── */
+
+router.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    const { encryptedData, metadata } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-    const meta = typeof metadata && typeof metadata === "object" ? metadata : JSON.parse(metadata);
+    if (!req.body.metadata) {
+      return res.status(400).json({ error: "Missing metadata" });
+    }
+
+      let meta;
+      try {
+        meta = JSON.parse(req.body.metadata);
+      } catch {
+        return res.status(400).json({ error: "Invalid metadata format" });
+      }
+
+    const { fileNonce, keyNonce, fileKeyCipher } = meta;
+
+    if (!fileNonce || !keyNonce || !fileKeyCipher) {
+      return res.status(400).json({ error: "Invalid encryption metadata" });
+    }
 
     const bucket = getBucket();
-    const buffer = Buffer.from(encryptedData, "base64");
-
     const fileId = new ObjectId();
 
-    await new Promise((resolve, reject) => {
-      const uploadStream = bucket.openUploadStreamWithId(fileId, meta.originalName || "file", {
+    const uploadStream = bucket.openUploadStreamWithId(
+      fileId,
+      meta.originalName || req.file.originalname,
+      {
         metadata: {
           userId: req.user.id,
           originalName: meta.originalName,
           mimeType: meta.mimeType,
           size: meta.size,
-          nonce: meta.nonce,
-          fileKeyCipher: meta.fileKeyCipher,
+          fileNonce,
+          keyNonce,
+          fileKeyCipher,
           uploadedAt: new Date(),
+          version: 2,
         },
-      });
+      }
+    );
 
-      uploadStream.once("finish", () => resolve());
-      uploadStream.once("error", reject);
-      uploadStream.end(buffer);
+    uploadStream.end(req.file.buffer);
+
+    uploadStream.once("finish", () => {
+      res.json({ success: true, id: fileId.toString() });
     });
 
-    res.json({ success: true, id: fileId.toString() });
+    uploadStream.once("error", (err) => {
+      console.error("GridFS upload error:", err);
+      res.status(500).json({ error: "Upload failed" });
+    });
   } catch (err) {
-    console.error("Upload failed:", err.message);
-    res.status(500).json({ error: "Upload failed" });
+    console.error("Upload failed:", err);
+    res.status(400).json({ error: err.message });
   }
 });
+
+/* ───────────────────────── Multer Error Handler ───────────────────────── */
+
+router.use((err, req, res, next) => {
+  if (err?.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({
+      error: "File too large. Max size is 100 MB",
+    });
+  }
+  next(err);
+});
+
+
 
 // LIST
 router.get("/list", async (req, res) => {
@@ -76,37 +122,58 @@ router.get("/list", async (req, res) => {
   }
 });
 
-// DOWNLOAD
+/* ================================
+   DOWNLOAD ENCRYPTED FILE
+   Query: ?id=...
+================================ */
 router.get("/download", async (req, res) => {
   try {
     const { id } = req.query;
-    if (!ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid ID" });
 
-    const bucket = getBucket();
+    if (!id || !ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid file ID" });
+    }
+
     const fileId = new ObjectId(id);
+    const bucket = getBucket();
 
-    const fileDoc = await bucket.find({ _id: fileId, "metadata.userId": req.user.id }).next();
-    if (!fileDoc) return res.status(404).json({ error: "File not found" });
+    const fileDoc = await bucket.find({
+      _id: fileId,
+      "metadata.userId": req.user.id,
+    }).next();
+
+    if (!fileDoc) {
+      return res.status(404).json({ error: "File not found" });
+    }
 
     const downloadStream = bucket.openDownloadStream(fileId);
-
     const chunks = [];
-    for await (const chunk of downloadStream) chunks.push(chunk);
 
-    const encryptedData = Buffer.concat(chunks).toString("base64");
+    await new Promise((resolve, reject) => {
+      downloadStream.on("data", (c) => chunks.push(c));
+      downloadStream.on("end", resolve);
+      downloadStream.on("error", reject);
+    });
+
+    const buffer = Buffer.concat(chunks);
 
     res.json({
-      encryptedData,
+      encryptedData: buffer.toString("base64"),
       metadata: {
-        nonce: fileDoc.metadata.nonce,
+        originalName: fileDoc.metadata.originalName,
+        mimeType: fileDoc.metadata.mimeType,
+        size: fileDoc.metadata.size,
+        fileNonce: fileDoc.metadata.fileNonce,
+        keyNonce: fileDoc.metadata.keyNonce,
         fileKeyCipher: fileDoc.metadata.fileKeyCipher,
-        mimeType: fileDoc.metadata.mimeType || "application/octet-stream",
+        version: fileDoc.metadata.version,
       },
     });
   } catch (err) {
-    console.error(err);
+    console.error("Download failed:", err);
     res.status(500).json({ error: "Download failed" });
   }
 });
+
 
 export default router;
