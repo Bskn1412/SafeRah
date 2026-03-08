@@ -30,7 +30,8 @@ app.use(cookieParser());  // ← THIS IS REQUIRED
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://saferaho.vercel.app"
+  "https://saferaho.vercel.app",
+  "https://saferaho.stormkit.dev"
 ];
 
 app.use(cors({
