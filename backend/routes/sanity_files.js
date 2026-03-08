@@ -2,36 +2,21 @@
 
 import express from "express";
 import multer from "multer";
-import fs from "fs-extra";
-import path from "path";
 import sanity from "../sanity.js";
-import { fileURLToPath } from "url";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const router = express.Router();
-router.use(authMiddleware); 
-router.use((req, res, next) => {
-  console.log("🔐 Sanity route user:", req.user);
-  next();
-});
-
+router.use(authMiddleware);
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const TEMP_DIR = path.join(__dirname, "../temp_chunks");
-fs.ensureDirSync(TEMP_DIR);
-
-/* ───────────────────────── Upload Encrypted Chunk ───────────────────────── */
+/* ───────────────────────── Upload Encrypted Chunk Directly ───────────────────────── */
 
 router.post("/upload-chunk", upload.single("chunkData"), async (req, res) => {
   try {
     const {
       uploadId,
       fileName,
-      plainSize,
       chunkIndex,
       totalChunks,
       chunkNonce,
@@ -40,50 +25,26 @@ router.post("/upload-chunk", upload.single("chunkData"), async (req, res) => {
     } = req.body;
 
     const accountId = req.user.id;
-    if (!accountId) {
-      return res.status(401).json({ error: "Unauthenticated upload" });
-    }
+    if (!accountId) return res.status(401).json({ error: "Unauthenticated upload" });
 
-    if (!req.file?.buffer) {
-      return res.status(400).json({ error: "Missing chunk data" });
-    }
+    if (!req.file?.buffer) return res.status(400).json({ error: "Missing chunk data" });
 
-    const fileDir = path.join(TEMP_DIR, uploadId);
-    await fs.ensureDir(fileDir);
+    // Upload chunk directly to Sanity
+    const asset = await sanity.assets.upload("file", req.file.buffer, {
+      filename: `${uploadId}_chunk_${chunkIndex}.bin`,
+      contentType: "application/octet-stream",
+    });
 
-    // Write encrypted chunk to temp storage
-    await fs.writeFile(path.join(fileDir, `chunk_${chunkIndex}`), req.file.buffer);
+    // Return asset info to frontend
+    res.json({
+      ok: true,
+      chunkIndex: Number(chunkIndex),
+      assetId: asset._id,
+      keyNonce,
+      fileKeyCipher,
+      chunkNonce,
+    });
 
-    const metaPath = path.join(fileDir, "meta.json");
-    let meta = {};
-
-    if (await fs.pathExists(metaPath)) {
-      meta = await fs.readJson(metaPath);
-    }
-
-    // Initialize meta once
-    meta.uploadId = uploadId;
-    meta.accountId = accountId;
-    meta.fileName = fileName;
-    meta.totalChunks = Number(totalChunks);
-    meta.keyNonce = keyNonce;
-    meta.fileKeyCipher = fileKeyCipher;
-
-    if (plainSize) meta.plainSize = Number(plainSize);
-
-    // Hardening from hackers to change keyNonce/fileKeyCipher
-    if (!meta.keyNonce) meta.keyNonce = keyNonce;
-    if (!meta.fileKeyCipher) meta.fileKeyCipher = fileKeyCipher;
-
-    // Collect chunk nonces
-    meta.chunkNonces = {
-      ...(meta.chunkNonces || {}),
-      [Number(chunkIndex)]: chunkNonce,
-    };
-
-    await fs.writeJson(metaPath, meta);
-
-    res.json({ ok: true, chunkIndex: Number(chunkIndex) });
   } catch (err) {
     console.error("❌ Chunk upload failed:", err);
     res.status(500).json({ error: "Chunk upload failed" });
@@ -94,84 +55,60 @@ router.post("/upload-chunk", upload.single("chunkData"), async (req, res) => {
 
 router.post("/complete-upload", async (req, res) => {
   try {
-    const { uploadId } = req.body;
+    const { uploadId, fileName, totalChunks, chunkAssets } = req.body;
     const accountId = req.user.id;
 
-    const fileDir = path.join(TEMP_DIR, uploadId);
-    const metaPath = path.join(fileDir, "meta.json");
-
-    if (!(await fs.pathExists(metaPath))) {
-      return res.status(400).json({ error: "Upload not found" });
+    if (!uploadId || !fileName || !totalChunks || !Array.isArray(chunkAssets)) {
+      return res.status(400).json({ error: "Invalid finalize request" });
     }
 
-    const meta = await fs.readJson(metaPath);
-
-    if (meta.accountId !== accountId) {
-      return res.status(403).json({ error: "Not allowed to finalize this upload" });
+    if (chunkAssets.length !== totalChunks) {
+      return res.status(400).json({ error: "Not all chunks uploaded" });
     }
 
-    const encryptedChunks = [];
+    // Build encryptedChunks array
+    const encryptedChunks = chunkAssets.map((c, idx) => ({
+      index: idx,
+      assetRef: c.assetId,
+      keyNonce: c.keyNonce,
+      fileKeyCipher: c.fileKeyCipher,
+      chunkNonce: c.chunkNonce,
+    }));
 
-    // Upload each encrypted chunk as its own Sanity asset
-    for (let i = 0; i < meta.totalChunks; i++) {
-      const chunkPath = path.join(fileDir, `chunk_${i}`);
-
-      if (!(await fs.pathExists(chunkPath))) {
-        return res.status(400).json({ error: `Missing chunk ${i}` });
-      }
-
-      const buf = await fs.readFile(chunkPath);
-
-      const asset = await sanity.assets.upload("file", buf, {
-        filename: `${uploadId}_chunk_${i}.bin`,
-        contentType: "application/octet-stream",
-      });
-
-      encryptedChunks.push({
-        index: i,
-        assetRef: asset._id,
-      });
-    }
-
+    // Create Sanity document
     const docId = `encryptedFile-${uploadId}`;
-
     const doc = await sanity.createIfNotExists({
       _id: docId,
       _type: "encryptedFile",
-      accountId: meta.accountId,
-      name: meta.fileName,
-      size: meta.plainSize || null, // or original plaintext size if you pass it
+      accountId,
+      name: fileName,
+      size: null, // optional, could send from frontend
       mimeType: "application/octet-stream",
-      chunks: encryptedChunks.map((c) => ({
+      chunks: encryptedChunks.map(c => ({
         index: c.index,
         asset: {
           _type: "file",
-          asset: {
-            _type: "reference",
-            _ref: c.assetRef,
-          },
+          asset: { _type: "reference", _ref: c.assetRef },
         },
       })),
       crypto: {
-        keyNonce: meta.keyNonce,
-        fileKeyCipher: meta.fileKeyCipher,
-        chunkNonces: Object.entries(meta.chunkNonces).map(([index, nonce]) => ({
-          index: Number(index),
-          nonce,
+        keyNonce: encryptedChunks[0]?.keyNonce || null,
+        fileKeyCipher: encryptedChunks[0]?.fileKeyCipher || null,
+        chunkNonces: encryptedChunks.map(c => ({
+          index: c.index,
+          nonce: c.chunkNonce,
         })),
       },
       uploadedAt: new Date().toISOString(),
     });
-
-    await fs.remove(fileDir);
 
     res.json({
       ok: true,
       file: {
         id: doc._id,
         name: doc.name,
-        size: doc.size,
         uploadedAt: doc.uploadedAt,
+        totalChunks,
       },
     });
   } catch (err) {
@@ -180,6 +117,7 @@ router.post("/complete-upload", async (req, res) => {
   }
 });
 
+
 /* ───────────────────────── Upload Encrypted Preview (optional) ───────────────────────── */
 
 router.post(
@@ -187,7 +125,8 @@ router.post(
   upload.single("previewData"),
   async (req, res) => {
     try {
-      const { uploadId, accountId, version, encryptedPreviewKey } = req.body;
+      const { uploadId, version, encryptedPreviewKey } = req.body;
+      const accountId = req.user.id;
 
       console.log("🖼️ Encrypted preview received", {
         uploadId,

@@ -30,6 +30,7 @@
     "fs-extra": "^11.3.3",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^4.0.0",
+    "libsodium-wrappers": "^0.8.2",
     "libsodium-wrappers-sumo": "^0.7.15",
     "lucide-react": "^0.556.0",
     "mongodb": "^7.0.0",

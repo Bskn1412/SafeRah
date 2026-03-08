@@ -75,7 +75,7 @@ export default function AuthPanel() {
     </motion.div>
 
 
-    <div className="min-h-screen bg-black flex items-center justify-center px-4 overflow-hidden relative">
+    <div className="min-h-screen bg-gradient- flex items-center justify-center px-4 overflow-hidden relative">
       {/* Close Button 
               <button
                 onClick={closeModal}

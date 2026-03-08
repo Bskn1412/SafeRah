@@ -93,14 +93,13 @@ export default function Dashboard() {
 
   /* -------------------- Upload -------------------- */
 
- const handleUpload = async (e) => {
+const handleUpload = async (e) => {
   const files = Array.from(e.target.files);
   if (!files.length) return;
 
   setIsLoading(true);
   setStatus("Encrypting and uploading...");
 
-  // Helper: upload with progress (XHR)
   const uploadChunkWithProgress = (url, formData, onProgress) => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -114,7 +113,7 @@ export default function Dashboard() {
       };
 
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
         else reject(new Error(`Upload failed: ${xhr.status}`));
       };
 
@@ -128,7 +127,7 @@ export default function Dashboard() {
     for (const file of files) {
       const uploadId = uuidv4();
 
-      // Init progress UI
+      // Initialize progress
       setUploadProgress((prev) => ({
         ...prev,
         [uploadId]: { name: file.name, progress: 0 },
@@ -136,53 +135,35 @@ export default function Dashboard() {
 
       setStatus(`Encrypting ${file.name}...`);
 
-      // Encrypt in chunks
+      // Encrypt file in memory
       const { encryptedChunks, crypto } = await encryptFileChunks(file);
 
-      // Precompute total encrypted bytes for smooth progress
-      const totalBytes = encryptedChunks.reduce(
-        (sum, c) => sum + c.data.byteLength,
-        0
-      );
+      const chunkAssets = [];
 
-      let uploadedBytes = 0;
-
-      // Upload chunks sequentially
       for (const chunk of encryptedChunks) {
         const formData = new FormData();
         formData.append("uploadId", uploadId);
-        formData.append("accountId", user.id);
         formData.append("fileName", file.name);
         formData.append("chunkIndex", chunk.index);
         formData.append("chunkData", new Blob([chunk.data]));
         formData.append("chunkNonce", chunk.nonce);
-        formData.append("totalChunks", crypto.totalChunks);
+        formData.append("totalChunks", encryptedChunks.length);
         formData.append("keyNonce", crypto.keyNonce);
         formData.append("fileKeyCipher", crypto.fileKeyCipher);
 
-        if (chunk.index === 0) {
-          formData.append("plainSize", file.size.toString());
-        }
+        // Optionally send file size in first chunk
+        if (chunk.index === 0) formData.append("plainSize", file.size.toString());
 
         setStatus(
           `Uploading ${file.name}: chunk ${chunk.index + 1}/${encryptedChunks.length}`
         );
 
-        await uploadChunkWithProgress(
+        // Upload chunk and get asset info
+        const data = await uploadChunkWithProgress(
           "http://localhost:5000/api/files/upload-chunk",
           formData,
           (fraction) => {
-            const currentChunkUploaded = Math.floor(
-              chunk.data.byteLength * fraction
-            );
-
-            const totalSoFar = uploadedBytes + currentChunkUploaded;
-
-            const percent = Math.min(
-              99, // keep under 100% until finalize step
-              Math.floor((totalSoFar / totalBytes) * 100)
-            );
-
+            const percent = Math.floor(((chunk.index + fraction) / encryptedChunks.length) * 100);
             setUploadProgress((prev) => ({
               ...prev,
               [uploadId]: { name: file.name, progress: percent },
@@ -190,8 +171,13 @@ export default function Dashboard() {
           }
         );
 
-        // After this chunk completes, lock in its bytes
-        uploadedBytes += chunk.data.byteLength;
+        // Collect asset info for finalization
+        chunkAssets.push({
+          assetId: data.assetId,
+          chunkNonce: data.chunkNonce,
+          keyNonce: crypto.keyNonce,
+          fileKeyCipher: crypto.fileKeyCipher,
+        });
       }
 
       // Finalize upload on backend
@@ -199,20 +185,26 @@ export default function Dashboard() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uploadId, fileName: file.name, accountId: user.id }),
+        body: JSON.stringify({
+          uploadId,
+          fileName: file.name,
+          totalChunks: encryptedChunks.length,
+          chunkAssets,
+        }),
       });
 
-      // Mark 100% only after finalize completes
+      // Mark upload as complete
       setUploadProgress((prev) => ({
         ...prev,
         [uploadId]: { name: file.name, progress: 100 },
       }));
     }
 
+    // Refresh file list
     await fetchFiles();
     setStatus("All uploads complete");
   } catch (err) {
-    console.error(err);
+    console.error("Upload error:", err);
     setErrorMessage(err.message || "Upload failed");
     setStatus("Upload failed");
   } finally {
@@ -221,13 +213,15 @@ export default function Dashboard() {
   }
 };
 
+
   /* -------------------- Download -------------------- */
 
-  const downloadFile = async (file) => {
+ const downloadFile = async (file) => {
   try {
     setIsLoading(true);
     setStatus(`Decrypting ${file.name}...`);
 
+    // Fetch encrypted chunks and metadata
     const res = await fetch(
       `http://localhost:5000/api/files/download?id=${file.id}`,
       {
@@ -251,6 +245,7 @@ export default function Dashboard() {
 
     const decryptedParts = [];
 
+    // Decrypt each chunk sequentially in memory
     for (const chunk of encryptedChunks.sort((a, b) => a.index - b.index)) {
       const plain = await decryptChunk(
         chunk.data,
@@ -261,9 +256,9 @@ export default function Dashboard() {
       decryptedParts.push(plain);
     }
 
-    // Concatenate decrypted chunks
-    const totalLen = decryptedParts.reduce((sum, p) => sum + p.length, 0);
-    const decrypted = new Uint8Array(totalLen);
+    // Concatenate all decrypted chunks into a single Uint8Array
+    const totalLength = decryptedParts.reduce((sum, p) => sum + p.length, 0);
+    const decrypted = new Uint8Array(totalLength);
 
     let offset = 0;
     for (const part of decryptedParts) {
@@ -271,10 +266,8 @@ export default function Dashboard() {
       offset += part.length;
     }
 
-    const blob = new Blob([decrypted], {
-      type: metadata.mimeType || "application/octet-stream",
-    });
-
+    // Create a Blob and trigger download
+    const blob = new Blob([decrypted], { type: metadata.mimeType || "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -286,13 +279,14 @@ export default function Dashboard() {
 
     setStatus("Download complete");
   } catch (err) {
-    console.error(err);
-    setErrorMessage(err.message);
+    console.error("Download error:", err);
+    setErrorMessage(err.message || "Download failed");
     setStatus("Download failed");
   } finally {
     setIsLoading(false);
   }
 };
+
 
 /* -------------------- Delete --------------------  */
 
