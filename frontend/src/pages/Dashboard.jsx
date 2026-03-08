@@ -12,6 +12,10 @@ import { v4 as uuidv4 } from "uuid"; // to generate uploadId
 import { decryptChunk } from "../crypto/files";
 import ProfileDropdown from "./Profile";
 
+// For Vercel through Render
+const API = import.meta.env.VITE_API_URL;
+// **************************************
+
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 export default function Dashboard() {
@@ -56,7 +60,7 @@ export default function Dashboard() {
 
   const fetchFiles = async () => {
   try {
-    const res = await fetch("http://localhost:5000/api/files/list", {
+    const res = await fetch(`${API}/api/files/list`, {
       credentials: "include",
     });
 
@@ -75,7 +79,7 @@ export default function Dashboard() {
   useEffect(() => {
   const fetchUser = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/auth/me", { credentials: "include" });
+      const res = await fetch(`${API}/api/auth/me`, { credentials: "include" });
       if (!res.ok) return;
       const data = await res.json();
 
@@ -160,7 +164,7 @@ const handleUpload = async (e) => {
 
         // Upload chunk and get asset info
         const data = await uploadChunkWithProgress(
-          "http://localhost:5000/api/files/upload-chunk",
+          `${API}/api/files/upload-chunk`,
           formData,
           (fraction) => {
             const percent = Math.floor(((chunk.index + fraction) / encryptedChunks.length) * 100);
@@ -181,7 +185,7 @@ const handleUpload = async (e) => {
       }
 
       // Finalize upload on backend
-      await fetch("http://localhost:5000/api/files/complete-upload", {
+      await fetch(`${API}/api/files/complete-upload`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -223,7 +227,7 @@ const handleUpload = async (e) => {
 
     // Fetch encrypted chunks and metadata
     const res = await fetch(
-      `http://localhost:5000/api/files/download?id=${file.id}`,
+      `${API}/api/files/download?id=${file.id}`,
       {
         credentials: "include",
         cache: "no-store",
@@ -298,7 +302,7 @@ const deleteFile = async (file) => {
     setStatus(`Deleting ${file.name}...`);
 
     const res = await fetch(
-      `http://localhost:5000/api/files/delete?id=${file.id}`,
+      `${API}/api/files/delete?id=${file.id}`,
       {
         method: "DELETE",
         credentials: "include",
