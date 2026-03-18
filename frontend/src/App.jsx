@@ -15,6 +15,7 @@ import "react-toastify/dist/ReactToastify.css";
 import RegTest from "./pages/RegTest";
 import EncryptedUploader from "./pages/EncryptUploader";
 import EmailAuth from "./pages/EmailAuth";
+import { Analytics } from "@vercel/analytics/react";
 
 function App() {
   return (
@@ -53,7 +54,7 @@ function App() {
         <Route path="/email-auth" element={<EmailAuth />} />
 
       </Routes>
-
+      <Analytics />
     </>
   );
 }
