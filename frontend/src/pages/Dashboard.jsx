@@ -107,27 +107,33 @@ const handleUpload = async (e) => {
   setStatus("Encrypting and uploading...");
 
   const uploadChunkWithProgress = (url, formData, onProgress) => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", url);
-      xhr.withCredentials = true;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.withCredentials = true;
 
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          onProgress(event.loaded / event.total);
-        }
-      };
+    const token = localStorage.getItem("jwt");
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
 
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(`Upload failed: ${xhr.status}`));
-      };
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(event.loaded / event.total);
+      }
+    };
 
-      xhr.onerror = () => reject(new Error("Network error"));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300)
+        resolve(JSON.parse(xhr.responseText));
+      else reject(new Error(`Upload failed: ${xhr.status}`));
+    };
 
-      xhr.send(formData);
-    });
-  };
+    xhr.onerror = () => reject(new Error("Network error"));
+
+    xhr.send(formData);
+  });
+};
 
   try {
     for (const file of files) {
@@ -166,7 +172,7 @@ const handleUpload = async (e) => {
 
         // Upload chunk and get asset info
         const data = await uploadChunkWithProgress(
-          `files/upload-chunk`,
+          `${API}/api/files/upload-chunk`,
           formData,
           (fraction) => {
             const percent = Math.floor(((chunk.index + fraction) / encryptedChunks.length) * 100);
