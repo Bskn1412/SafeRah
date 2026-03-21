@@ -10,7 +10,7 @@ import { Security } from "../components/Security.jsx";
 import { Benifits } from "../components/Benifits.jsx";
 import { CTASection } from "../components/CTASection.jsx";
 import { Avatar } from "../components/Avatar.jsx";
-import ScrollToTop from "../components/scrollToTop.jsx";
+import ScrollToTop from "../components/ScrollToTop.jsx";
 
 export default function Home() {
   return (
