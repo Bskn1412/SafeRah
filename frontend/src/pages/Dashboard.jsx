@@ -166,7 +166,7 @@ const handleUpload = async (e) => {
 
         // Upload chunk and get asset info
         const data = await uploadChunkWithProgress(
-          `${API}/api/files/upload-chunk`,
+          `files/upload-chunk`,
           formData,
           (fraction) => {
             const percent = Math.floor(((chunk.index + fraction) / encryptedChunks.length) * 100);
