@@ -52,16 +52,28 @@ export default function Authenticator() {
   /* OTP Handling                        */
   /* ---------------------------------- */
   const handleOtpChange = (index, value) => {
-    if (/\D/.test(value)) return;
+  const cleaned = value.replace(/\D/g, ""); // remove non-digits
 
-    const newOtp = [...otp];
-    newOtp[index] = value.slice(-1);
-    setOtp(newOtp);
+  const newOtp = [...otp];
+  newOtp[index] = cleaned.slice(-1);
+  setOtp(newOtp);
 
-    if (value && index < 5) {
+    if (cleaned && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
+
+  const handlePaste = (e) => {
+  const paste = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+  if (!paste) return;
+
+  const newOtp = paste.split("");
+  setOtp([...newOtp, ...Array(6 - newOtp.length).fill("")]);
+
+  paste.split("").forEach((_, i) => {
+    inputRefs.current[i]?.focus();
+  });
+};
 
   const handleKeyDown = (index, e) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
@@ -172,9 +184,12 @@ export default function Authenticator() {
               <label className="text-sm text-cyan-400/80 block text-left mb-2">
                 Enter 6-digit code
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2" onPaste={handlePaste}>
                 {otp.map((digit, index) => (
                   <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     key={index}
                     ref={(el) => (inputRefs.current[index] = el)}
                     autoFocus={index === 0}

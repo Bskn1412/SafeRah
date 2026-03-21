@@ -1,4 +1,4 @@
-import React from 'react';
+import { Link } from "react-router-dom";
 
 export function Help() {
   return (
@@ -25,13 +25,13 @@ export function Help() {
           >
             Terms of Service
           </a>
-
-          <a
-            href="mailto:support@saferaho.com"
+            
+          <Link
+            to="/contact"
             className="block px-4 py-3 bg-slate-800/50 rounded-lg hover:bg-emerald-500/10 text-emerald-400 font-semibold transition"
           >
             Contact Support
-          </a>
+          </Link>
 
           <a
             href="/faq"

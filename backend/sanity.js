@@ -6,6 +6,7 @@ dotenv.config();
 const sanity = createClient({
   projectId: process.env.SANITY_PROJECT_ID,
   dataset: "production",
+   useCdn: false,           // disable caching for writes
   apiVersion: "2024-01-01",
   token: process.env.SANITY_WRITE_TOKEN, // 🔐 backend only
   useCdn: false,

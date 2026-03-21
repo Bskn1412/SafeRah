@@ -1,3 +1,5 @@
+// backend/routes/recovery.js
+
 import express from "express";
 import { setupRecovery } from "../controllers/recoveryController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";

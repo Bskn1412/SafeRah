@@ -1,3 +1,5 @@
+// frontend/src/pages/Dashboard.js
+
 "use client";
 
 import { useState, useEffect, useRef } from "react";

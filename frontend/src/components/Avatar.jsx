@@ -5,9 +5,7 @@ export function Avatar() {
   const [isOpen, setIsOpen] = useState(false);
   const [ripples, setRipples] = useState([]);
   const containerRef = useRef(null);
-  const menuRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -18,7 +16,6 @@ export function Avatar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Ripple effect
   const createRipple = (e) => {
     const button = e.currentTarget;
     const size = button.offsetWidth;
@@ -36,16 +33,20 @@ export function Avatar() {
   };
 
   return (
-    <div
-      ref={containerRef}
-    >
+    <div ref={containerRef} className="relative">
+      
       {/* Avatar Button */}
       <button
         onClick={(e) => {
           createRipple(e);
           setIsOpen((v) => !v);
         }}
-        className="relative w-12 h-12 rounded-full overflow-hidden bg-gray-800 flex items-center justify-center hover:shadow-lg hover:shadow-indigo-400/50 transition-all duration-300 cursor-pointer"
+        className="relative 
+          w-10 h-10 sm:w-12 sm:h-12 
+          rounded-full overflow-hidden bg-gray-800 
+          flex items-center justify-center 
+          hover:shadow-lg hover:shadow-indigo-400/50 
+          transition-all duration-300 cursor-pointer"
       >
         {/* Ripples */}
         {ripples.map((r) => (
@@ -57,14 +58,13 @@ export function Avatar() {
               width: r.size,
               height: r.size,
             }}
-            className="absolute bg-white opacity-30 rounded-full animate-ripple pointer-events-none cursor-pointer"
+            className="absolute bg-white opacity-30 rounded-full animate-ripple pointer-events-none"
           />
         ))}
 
         {/* Avatar Icon */}
         <svg
-          width="24"
-          height="24"
+          className="w-5 h-5 sm:w-6 sm:h-6"
           viewBox="0 0 24 24"
           fill="none"
           stroke="white"
@@ -77,11 +77,12 @@ export function Avatar() {
 
       {/* Dropdown Menu */}
       <div
-        ref={menuRef}
         className={`
-          absolute right-0 mt-8 w-60 bg-gray-900 rounded-lg
+          absolute right-0 mt-4 sm:mt-6
+          w-44 sm:w-56 md:w-60
+          bg-gray-900 rounded-lg
           border border-gray-700 shadow-lg overflow-hidden
-          transition-all duration-700 ease-out
+          transition-all duration-300 ease-out
           ${isOpen
             ? "opacity-100 translate-y-0 max-h-60"
             : "opacity-0 -translate-y-2 max-h-0 pointer-events-none"}
@@ -90,21 +91,23 @@ export function Avatar() {
         <Link
           to="/login"
           onClick={() => setIsOpen(false)}
-          className="block p-4 text-xl hover:bg-gray-700"
+          className="block px-4 py-3 text-sm sm:text-base md:text-lg hover:bg-gray-700"
         >
           Sign In
         </Link>
+
         <Link
           to="/register"
           onClick={() => setIsOpen(false)}
-          className="block p-4 text-xl hover:bg-gray-700"
+          className="block px-4 py-3 text-sm sm:text-base md:text-lg hover:bg-gray-700"
         >
           Sign Up
         </Link>
+
         <Link
           to="/help"
           onClick={() => setIsOpen(false)}
-          className="block p-4 text-xl hover:bg-gray-700"
+          className="block px-4 py-3 text-sm sm:text-base md:text-lg hover:bg-gray-700"
         >
           Help
         </Link>

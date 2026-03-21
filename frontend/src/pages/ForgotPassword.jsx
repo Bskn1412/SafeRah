@@ -1,6 +1,6 @@
-"use client";
+ "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Mail, KeyRound, Shield, CheckCircle, Copy } from "lucide-react";
 import { api } from "../api";
 import { unwrapWithRecovery, rewrapWithPassword, wrapMasterKeyWithRecovery } from "../crypto/recovery";
@@ -17,7 +17,7 @@ import OTPInput from "./OtpInput";
 export default function ForgotPassword() {
   const [step, setStep] = useState("EMAIL");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [phrase, setPhrase] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,6 +25,8 @@ export default function ForgotPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [recoveryMeta, setRecoveryMeta] = useState(null);
   const [sessionToken, setSessionToken] = useState(""); // single token state
+
+  const inputRefs = useRef([]);
 
   const getToken = () => sessionToken?.trim(); // helper
 
@@ -74,13 +76,14 @@ export default function ForgotPassword() {
   };
 
   const submitOtp = async (e) => {
-  e.preventDefault();
+  if (e) e.preventDefault(); // ✅ handle both button + auto-submit
+
   setIsLoading(true);
 
-  // 1️⃣ Sanitize OTP: remove non-digits and trim
-  const sanitizedOtp = otp.trim().replace(/\D/g, "");
+  // ✅ Convert array → string and clean
+  const sanitizedOtp = otp.join("").replace(/\D/g, "");
 
-  // 2️⃣ Validate length
+  // ✅ Validate
   if (sanitizedOtp.length !== 6) {
     notify.error("OTP must be exactly 6 digits");
     setIsLoading(false);
@@ -108,10 +111,14 @@ export default function ForgotPassword() {
 
     setRecoveryMeta(metaRes.data);
     setStep("PHRASE");
-    notify.success("Code verified. Enter your recovery phrase.");
 
+    notify.success("Code verified. Enter your recovery phrase.");
   } catch (err) {
-    notify.error(err.response?.data?.message || err.message || "Invalid authenticator code");
+    notify.error(
+      err.response?.data?.message ||
+      err.message ||
+      "Invalid authenticator code"
+    );
   } finally {
     setIsLoading(false);
   }
@@ -293,22 +300,73 @@ return (
               </div>
             )}
 
-           {step === "TOTP" && (
-              <div className="flex flex-col items-center gap-4">
-                <p className="text-center text-gray-400 text-sm mb-2.5">
-                  Enter the 6-digit code from your authenticator app to verify your identity.
-                </p>
-                {/* <KeyRound className="text-emerald-400 w-6 h-6" /> */}
-                <OTPInput
-                  otp={otp}
-                  setOtp={setOtp}
-                  disabled={isLoading}
-                  onComplete={submitOtp} // auto-submit when all 6 digits filled
-                />
-              </div>
-            )}
+       {step === "TOTP" && (
+  <div className="flex flex-col items-center gap-4">
+    <p className="text-center text-gray-400 text-sm mb-2.5">
+      Enter the 6-digit code from your authenticator app to verify your identity.
+    </p>
 
+    <div
+      className="grid grid-cols-6 gap-2 sm:gap-3 w-full max-w-sm mx-auto"
+      onPaste={(e) => {
+        const paste = e.clipboardData
+          .getData("text")
+          .replace(/\D/g, "")
+          .slice(0, 6);
 
+        if (!paste) return;
+
+        const newOtp = paste.split("");
+        const fullOtp = [...newOtp, ...Array(6 - newOtp.length).fill("")];
+
+        setOtp(fullOtp);
+
+        // focus last filled input
+        setTimeout(() => {
+          inputRefs.current[paste.length - 1]?.focus();
+        }, 0);
+      }}
+    >
+      {otp.map((digit, index) => (
+        <input
+          key={index}
+          ref={(el) => (inputRefs.current[index] = el)}
+          value={digit}
+          disabled={isLoading}
+          maxLength={1}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          onChange={(e) => {
+            const value = e.target.value.replace(/\D/g, "");
+
+            const newOtp = [...otp];
+            newOtp[index] = value.slice(-1);
+            setOtp(newOtp);
+
+            if (value && index < 5) {
+              inputRefs.current[index + 1]?.focus();
+            }
+
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace") {
+              if (!otp[index] && index > 0) {
+                inputRefs.current[index - 1]?.focus();
+              }
+            }
+          }}
+          className="aspect-3/4 w-full text-center text-base sm:text-xl
+            font-bold rounded-xl bg-black/30
+            border border-cyan-500/40
+            focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/40
+            text-white transition"
+                // ✅ Autofocus first input when TOTP step appears
+          autoFocus={index === 0}
+        />
+      ))}
+    </div>
+  </div>
+)}
            {step === "PHRASE" && (
               <>
               <textarea

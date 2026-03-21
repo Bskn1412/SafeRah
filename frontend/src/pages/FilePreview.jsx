@@ -16,7 +16,7 @@ export default function FilePreview({ file, vaultKeys, onClose }) {
 
       // Fetch encrypted chunks from backend
       const res = await fetch(
-        `${API}/api/files/download?id=${file.id}`,
+        `http://localhost:5000/api/files/download?id=${file.id}`,
         { credentials: "include" }
       );
 

@@ -26,18 +26,13 @@ export function Benifits() {
             ].map((benefit) => (
             <ScrollReveal key={benefit.title}>
                 <InteractiveCard>
-                <div className="border border-border/40 rounded-lg p-6 bg-card 
-                                hover:border-primary/50 transition-all duration-300 
-                                group hover:shadow-lg hover:shadow-primary/10">
-                    <h3 className="font-semibold text-lg mb-2 
-                                group-hover:text-primary transition-colors">
-                    {benefit.title}
-                    </h3>
-                    <p className="text-foreground/70 
-                                group-hover:text-foreground/80 transition-colors">
-                    {benefit.desc}
-                    </p>
-                </div>
+                    <div className="border border-e-lime-400 rounded-lg p-6 bg-card 
+                                    hover:border-primary/50 transition-all duration-300 
+                                    group hover:shadow-lg hover:shadow-primary/20 text-lime-400">
+
+                        <h3 className="font-semibold text-lg mb-2"> {benefit.title} </h3>
+                        <p className="text-foreground/70 group-hover:text-foreground/80 transition-colors"> {benefit.desc} </p>
+                    </div>
                 </InteractiveCard>
             </ScrollReveal>
             ))}

@@ -140,6 +140,6 @@ export default function LoginForm({ textVariants }) {
         */}
       </div> 
 
-    </motion.form>   
+    </motion.form>
   );
 }

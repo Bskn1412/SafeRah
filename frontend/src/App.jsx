@@ -15,6 +15,7 @@ import "react-toastify/dist/ReactToastify.css";
 import RegTest from "./pages/RegTest";
 import EncryptedUploader from "./pages/EncryptUploader";
 import EmailAuth from "./pages/EmailAuth";
+import ContactSection from "./components/ContactSection";
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
         {/* For Sanity */}
         <Route path="/eupload" element={<EncryptedUploader />} />
         <Route path="/email-auth" element={<EmailAuth />} />
+        <Route path="/contact" element={<ContactSection />} />
 
       </Routes>
 
