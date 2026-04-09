@@ -28,6 +28,8 @@ import { recoveryAuth } from "../middleware/recoveryAuth.js";
 
 import { resetAuth } from "../middleware/resetAuth.js";
 
+app.set("trust proxy", 1);
+
 // Rate limit for verify (5 attempts/5min)
 const verifyLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
