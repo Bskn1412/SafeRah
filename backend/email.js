@@ -23,7 +23,9 @@ export function generateOtp(length = 6) {
   return otp;
 }
 
-export async function sendOtpEmail(email, otp) {
+try{
+  
+  async function sendOtpEmail(email, otp) {
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 30px;">
     <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; padding: 24px; border-radius: 6px;">
@@ -92,3 +94,9 @@ export async function sendOtpEmail(email, otp) {
     html: htmlContent,
   });
 }
+}
+catch(err){
+  console.error("Error in sendOtpEmail:", err);
+}
+
+export { sendOtpEmail };
