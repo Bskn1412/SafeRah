@@ -23,9 +23,7 @@ export function generateOtp(length = 6) {
   return otp;
 }
 
-try{
-  
-  async function sendOtpEmail(email, otp) {
+export async function sendOtpEmail(email, otp) {
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 30px;">
     <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; padding: 24px; border-radius: 6px;">
@@ -74,7 +72,8 @@ try{
 </div>
 `;
 
-  await transporter.sendMail({
+try {
+  transporter.sendMail({
     to: email,
     from: {
       address: process.env.EMAIL_USER,
@@ -94,9 +93,9 @@ try{
     html: htmlContent,
   });
 }
-}
-catch(err){
-  console.error("Error in sendOtpEmail:", err);
-}
 
-export { sendOtpEmail };
+catch (err) {
+  console.error("Error sending OTP email:", err);
+  throw new Error("Failed to send OTP email");
+}
+}
