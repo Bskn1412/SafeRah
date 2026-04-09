@@ -24,6 +24,7 @@ import { connectDB } from "./config/atlas_db.js"
 
 const app = express();
 
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));  // <-- REQUIRED for req.cookies
 app.use(cookieParser());  // ← THIS IS REQUIRED
