@@ -19,6 +19,7 @@ import {
 
   verifyEmail,
   resendOtp,
+  logout,
 
 } from "../controllers/authController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -34,12 +35,21 @@ const verifyLimiter = rateLimit({
   message: "Too many attempts, try again later."
 });
 
+// Rate limit for login (10 attempts/15min)
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many login attempts. Try again later.",
+});
+
 const router = express.Router();
 
 router.post("/register", register);
 router.post("/verifyEmail", verifyEmail);
 router.post("/resend-otp", resendOtp);
-router.post("/login", login);
+router.post("/login", loginLimiter, login);
+
+router.post("/logout", logout);
 
 // 2FA
 router.post("/2fa/setup", authMiddleware, setup2FA);

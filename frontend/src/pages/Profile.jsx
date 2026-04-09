@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { User } from "lucide-react";
+import { useState, useRef } from "react";
+import { User, LogOut, Bell, Settings } from "lucide-react";
 
 export default function ProfileDropdown({ user, handleLogout }) {
   const [showProfile, setShowProfile] = useState(false);
@@ -12,66 +12,77 @@ export default function ProfileDropdown({ user, handleLogout }) {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setShowProfile(prev => !prev);
+            setShowProfile((prev) => !prev);
           }}
-          className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center hover:scale-105 transition cursor-pointer"
+          className="relative w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-lg hover:scale-105 transition cursor-pointer"
         >
           <User className="w-5 h-5 text-white" />
+
+          {/* Online indicator */}
+          <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-400 border-2 border-slate-900 rounded-full"></span>
         </button>
       </div>
 
-      {/* Blur Overlay */}
+      {/* Overlay */}
       {showProfile && (
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-md z-30"
+          className="fixed inset-0 bg-black/40 backdrop-blur-md z-40"
           onClick={() => setShowProfile(false)}
         />
       )}
 
-
-      {/* Profile Dropdown */}
+      {/* Dropdown */}
       {showProfile && (
         <div
           ref={dropdownRef}
-          className="absolute right-6 top-24 w-80 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-2xl p-6 z-40"
+          className="absolute right-6 top-24 w-80 rounded-2xl bg-slate-900/95 backdrop-blur-2xl border border-slate-700 shadow-2xl z-50 overflow-hidden"
         >
-          <div className="mb-4">
-            <p className="font-semibold text-white text-sm leading-tight">
-              Welcome, 
-              <span className="text-emerald-400 font-serif text-3xl ml-1">
-                {user.name}
-              </span>
-            </p>
-            <p className="mt-2 text-sm text-slate-400">{user.email}</p>
+          {/* Top Section */}
+          <div className="p-5 border-b border-slate-800 flex items-center gap-4">
+            {/* Avatar */}
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white font-bold text-lg">
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+
+            {/* User Info */}
+            <div className="flex-1">
+              <p className="text-white font-semibold text-2xl truncate">
+                {user?.name || "Guest User"}
+              </p>
+              <p className="text-slate-400 text-xs truncate">
+                {user?.email || "No email"}
+              </p>
+            </div>
           </div>
 
-          <div>
-            <button
-        
-              className=" text-red-300 rounded-lg transition mb-5 cursor-pointer"
-            >
+          {/* Menu */}
+          <div className="p-3 space-y-1">
+
+            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 transition">
+              <Bell className="w-4 h-4" />
               Notifications
             </button>
-          </div>
-          
 
-          <div>
+            <button className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-slate-300 hover:bg-slate-800 transition">
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-slate-800" />
+
+          {/* Logout */}
+          <div className="p-3">
             <button
-            
-              className=" text-red-300 rounded-lg transition mb-5 cursor-pointer"
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition cursor-pointer"
             >
+              <LogOut className="w-4 h-4" />
               Logout
             </button>
           </div>
-          
-
-
-          <button
-            onClick={handleLogout}
-            className="w-full py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 rounded-lg transition cursor-pointer"
-          >
-            Logout
-          </button>
         </div>
       )}
     </>

@@ -3,31 +3,31 @@
 import jwt from "jsonwebtoken";
 
 export const authMiddleware = (req, res, next) => {
-  let token = null;
+  let token = req.cookies?.token?.trim(); // Start with cookie token if available
 
   // 1. Try Authorization header (Bearer token)
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-  console.log(`[authMiddleware] Route ${req.method} ${req.originalUrl} - Full Authorization header:`, authHeader);
+  // const authHeader = req.headers.authorization;
+  // if (authHeader) {
+  // console.log(`[authMiddleware] Route ${req.method} ${req.originalUrl} - Full Authorization header:`, authHeader);
 
-    // Split on any whitespace, ignore case
-    const parts = authHeader.trim().split(/\s+/);
-    if (parts.length >= 2 && parts[0].toLowerCase() === "bearer") {
-      const headerToken = parts[1].trim();
-      if (headerToken && headerToken !== "undefined" && headerToken.length > 20) {
-        token = headerToken;
-        console.log("Using Bearer token from header:", token.substring(0, 30) + "...");
-      } else {
-        console.log("Rejected Bearer token (empty, undefined, or too short)");
-      }
-    } else {
-      console.log("Invalid Authorization format");
-    }
-  }
+  //   // Split on any whitespace, ignore case
+  //   const parts = authHeader.trim().split(/\s+/);
+  //   if (parts.length >= 2 && parts[0].toLowerCase() === "bearer") {
+  //     const headerToken = parts[1].trim();
+  //     if (headerToken && headerToken !== "undefined" && headerToken.length > 20) {
+  //       token = headerToken;
+  //       console.log("Using Bearer token from header:", token.substring(0, 30) + "...");
+  //     } else {
+  //       console.log("Rejected Bearer token (empty, undefined, or too short)");
+  //     }
+  //   } else {
+  //     console.log("Invalid Authorization format");
+  //   }
+  // }
 
   // 2. Fallback to cookie if no valid header token
   if (!token && req.cookies?.token) {
-    token = req.cookies.token.trim();
+      token = req.cookies.token.trim();
     console.log("Using token from cookie:", token.substring(0, 30) + "...");
   }
 
@@ -37,8 +37,8 @@ export const authMiddleware = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Token decoded successfully:", decoded);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"], });
+    // console.log("Token decoded successfully:", decoded);
     req.user = decoded;
     next();
   } catch (err) {

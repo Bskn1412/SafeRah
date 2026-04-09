@@ -38,13 +38,6 @@ const userSchema = new mongoose.Schema({
   otpExpiresAt: Date,
   isVerified: { type: Boolean, default: false },
 
-  // 2FA
-  twoFactorSecret: {
-    cipherText: String,
-    nonce: String
-  },
-  twoFactorEnabled: { type: Boolean, default: false },
-
   // Recovery
   recovery: {
     wrappedMasterKey: String,
@@ -52,6 +45,16 @@ const userSchema = new mongoose.Schema({
     salt: String,
     enabled: { type: Boolean, default: false }
   },
+
+  // Session management
+  refreshToken: String,
+
+   // 2FA
+  twoFactorSecret: {
+    cipherText: String,
+    nonce: String
+  },
+  twoFactorEnabled: { type: Boolean, default: false },
 
   // Vault Keys (generate AFTER verification)
   encryptedMasterKey: String,
@@ -67,6 +70,4 @@ userSchema.index(
   { email: 1 },
   { unique: true, partialFilterExpression: { deletedAt: null } }
 );
-
-
 export default mongoose.model("User", userSchema);

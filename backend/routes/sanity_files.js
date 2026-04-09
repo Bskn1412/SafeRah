@@ -4,9 +4,10 @@ import express from "express";
 import multer from "multer";
 import sanity from "../sanity.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { requireComplete } from "../middleware/requireComplete.js";
 
 const router = express.Router();
-router.use(authMiddleware);
+router.use(authMiddleware, requireComplete);
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -55,7 +56,7 @@ router.post("/upload-chunk", upload.single("chunkData"), async (req, res) => {
 
 router.post("/complete-upload", async (req, res) => {
   try {
-    const { uploadId, fileName, totalChunks, chunkAssets } = req.body;
+    const { uploadId, fileName, totalChunks, chunkAssets, plainSize } = req.body;
     const accountId = req.user.id;
 
     if (!uploadId || !fileName || !totalChunks || !Array.isArray(chunkAssets)) {
@@ -82,7 +83,7 @@ router.post("/complete-upload", async (req, res) => {
       _type: "encryptedFile",
       accountId,
       name: fileName,
-      size: null, // optional, could send from frontend
+      size: Number(plainSize),
       mimeType: "application/octet-stream",
       chunks: encryptedChunks.map(c => ({
         index: c.index,
@@ -109,6 +110,7 @@ router.post("/complete-upload", async (req, res) => {
         name: doc.name,
         uploadedAt: doc.uploadedAt,
         totalChunks,
+        plainSize: doc.size,
       },
     });
   } catch (err) {
@@ -308,6 +310,67 @@ router.delete("/delete", async (req, res) => {
   }
 });
 
+/* ───────────────────────── Rename File ───────────────────────── */
 
+router.patch("/rename", async (req, res) => {
+  try {
+    const { id, newName } = req.body;
+    const accountId = req.user.id;
+
+    if (!id || !newName) {
+      return res.status(400).json({ error: "Missing fields" });
+    }
+
+    const doc = await sanity.getDocument(id);
+
+    if (!doc || doc.accountId !== accountId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const updated = await sanity
+      .patch(id)
+      .set({ name: newName })
+      .commit();
+
+    res.json({
+      ok: true,
+      file: {
+        id: updated._id,
+        name: updated.name,
+      },
+    });
+  } catch (err) {
+    console.error("Rename failed:", err);
+    res.status(500).json({ error: "Rename failed" });
+  }
+});
+
+/* ───────────────────────── File Info ───────────────────────── */
+
+router.get("/info", async (req, res) => {
+  try {
+    const { id } = req.query;
+    const accountId = req.user.id;
+
+    const file = await sanity.fetch(
+      `*[_type=="encryptedFile" && _id==$id && accountId==$accountId][0]{
+        _id,
+        name,
+        size,
+        uploadedAt,
+        mimeType,
+        "totalChunks": count(chunks)
+      }`,
+      { id, accountId }
+    );
+
+    if (!file) return res.sendStatus(404);
+
+    res.json(file);
+  } catch (err) {
+    console.error("Info fetch failed:", err);
+    res.status(500).json({ error: "Failed to fetch info" });
+  }
+});
 
 export default router;

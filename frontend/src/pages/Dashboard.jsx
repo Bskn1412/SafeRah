@@ -3,9 +3,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Lock, Unlock, Upload, Download, Shield, FileIcon, X, MoreVertical, Info } from "lucide-react";
+import { Lock, Unlock, Upload, Download, X, MoreVertical, Info,  
+  File,
+  FileText,
+  FileImage,
+  FileArchive,
+  FileVideo,
+  FileAudio,     
+  FileCode,     
+  FileSpreadsheet, 
+  FileJson
+} from "lucide-react";
 import { unlockVault, tryAutoUnlock, lockVault, isUnlocked } from "../crypto/vault";
-import { encryptFile, decryptFileData } from "../crypto/files";
+//import { encryptFile, decryptFileData } from "../crypto/files";
 import { motion, AnimatePresence } from "framer-motion";
 import "../global.css";
 
@@ -13,12 +23,71 @@ import { encryptFileChunks } from "../crypto/chunks"; // <-- your chunked encryp
 import { v4 as uuidv4 } from "uuid"; // to generate uploadId
 import { decryptChunk } from "../crypto/files";
 import ProfileDropdown from "./Profile";
+import { UploadManager } from "./uploadManager";
 
 // For Vercel through Render
 const API = import.meta.env.VITE_API_URL;
 // **************************************
 
 const INACTIVITY_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
+const getFileType = (name) => {
+  const ext = name.split('.').pop()?.toLowerCase();
+  if (!ext) return "file";
+
+  if (["pdf"].includes(ext)) return "pdf";
+  if (["doc", "docx"].includes(ext)) return "doc";
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(ext)) return "image";
+  if (["zip", "rar"].includes(ext)) return "zip";
+  if (["mp4", "mov", "avi", "mkv"].includes(ext)) return "video";
+  if (["txt", "md"].includes(ext)) return "text";
+  if (["xls", "xlsx", "ppt", "pptx", "csv"].includes(ext)) return "spreadsheet";
+  if (["js", "py", "java", "c", "cpp", "html", "css"].includes(ext)) return "code";
+  if (["mp3", "wav", "flac"].includes(ext)) return "audio";
+  if (["json"].includes(ext)) return "json";
+
+  return "file";
+};
+
+const FileIcon = ({ type }) => {
+  switch (type) {
+    case "pdf":
+      return <FileText className="w-6 h-6 text-red-500" />;
+    case "doc":
+      return <FileText className="w-6 h-6 text-blue-500" />;
+    case "image":
+      return <FileImage className="w-6 h-6 text-green-400" />;
+    case "zip":
+      return <FileArchive className="w-6 h-6 text-yellow-400" />;
+    case "video":
+      return <FileVideo className="w-6 h-6 text-purple-400" />;
+    case "text":
+      return <FileText className="w-6 h-6 text-slate-400" />;
+    case "spreadsheet": 
+      return <FileSpreadsheet className="w-6 h-6 text-green-400" />;
+    case "code":
+      return <FileCode className="w-6 h-6 text-cyan-400" />;
+    case "audio":
+      return <FileAudio className="w-6 h-6 text-pink-400" />;
+    case "json":
+      return <FileJson className="w-6 h-6 text-purple-400" />;
+    default:
+      return <File className="w-6 h-6 text-slate-400" />;
+  }
+};
+
+/* File type label */
+const getFileTypeLabel = (file) => {
+  if (file?.mimeType && file.mimeType !== "application/octet-stream") {
+    return file.mimeType.split("/")[1];
+  }
+
+  if (file?.name) {
+    return file.name.split(".").pop().toLowerCase();
+  }
+
+  return "unknown";
+};
 
 export default function Dashboard() {
   const [status, setStatus] = useState("Checking vault...");
@@ -46,6 +115,30 @@ export default function Dashboard() {
 
   const timeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  const manager = useRef(new UploadManager(3));
+  const controllersRef = useRef({});
+
+  const uploadingCount = Object.values(uploadProgress).filter(
+    (p) => p.status === "uploading" || p.status === "encrypting"
+  ).length;
+
+  const queuedCount = Object.values(uploadProgress).filter(
+    (p) => p.status === "queued"
+  ).length;
+
+  const [fileToDelete, setFileToDelete] = useState(null);
+
+  const [renameFile, setRenameFile] = useState(null);
+  const [newFileName, setNewFileName] = useState("");
+
+  const [infoFile, setInfoFile] = useState(null);
+  const [fileInfo, setFileInfo] = useState(null);
+
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showOnlineBanner, setShowOnlineBanner] = useState(false);
+  const [isSlow, setIsSlow] = useState(false);
+  const [ping, setPing] = useState(null);
 
   /* -------------------- Helpers -------------------- */
 
@@ -85,31 +178,159 @@ export default function Dashboard() {
       if (!res.ok) return;
       const data = await res.json();
 
+      if (!res.ok) {
+        window.location.href = "/login";
+      }
+    
+      if (data.signupStage === "recovery_pending") {
+        window.location.href = "/setup-recovery";
+        return;
+      }
+
+      if (data.signupStage === "mfa_pending") {
+        window.location.href = "/setup-2fa";
+        return;
+      }
+
       setUser({
-        id: data.id || data._id || data.accountId,
-        name: data.name || "User",
-        email: data.email || "",
+        id: data.id,
+        name: data.name,
+        email: data.email,
       });
 
-    } catch {}
+
+    } catch (err) {
+      console.error("User fetch error:", err);
+    }
   };
   fetchUser();
 }, []);
 
-
   /* -------------------- Upload -------------------- */
 
-const handleUpload = async (e) => {
+const handleUpload = (e) => {
   const files = Array.from(e.target.files);
   if (!files.length) return;
 
-  setIsLoading(true);
-  setStatus("Encrypting and uploading...");
+  files.forEach((file) => {
+    const uploadId = uuidv4();
 
-  const uploadChunkWithProgress = (url, formData, onProgress) => {
+    setUploadProgress((prev) => ({
+      ...prev,
+      [uploadId]: {
+        name: file.name,
+        percent: 0,
+        status: "queued",
+      },
+    }));
+
+    manager.current.add(() => uploadSingleFile(file, uploadId));
+  });
+
+  if (fileInputRef.current) fileInputRef.current.value = "";
+};
+
+
+const uploadSingleFile = async (file, uploadId) => {
+  try {
+    setUploadProgress((prev) => ({
+      ...prev,
+      [uploadId]: { ...prev[uploadId], status: "encrypting" },
+    }));
+
+    const { encryptedChunks, crypto } = await encryptFileChunks(file);
+
+    const chunkAssets = [];
+
+    // ✅ ONE controller per file (NOT per chunk)
+    const controller = new AbortController();
+    controllersRef.current[uploadId] = controller;
+
+    for (const chunk of encryptedChunks) {
+      // 🛑 STOP if cancelled
+      if (controller.signal.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+
+      const formData = new FormData();
+      formData.append("uploadId", uploadId);
+      formData.append("fileName", file.name);
+      formData.append("chunkIndex", chunk.index);
+      formData.append("chunkData", new Blob([chunk.data]));
+      formData.append("chunkNonce", chunk.nonce);
+      formData.append("totalChunks", encryptedChunks.length);
+      formData.append("keyNonce", crypto.keyNonce);
+      formData.append("fileKeyCipher", crypto.fileKeyCipher);
+
+      if (chunk.index === 0) {
+        formData.append("plainSize", file.size.toString());
+      }
+
+      const data = await uploadChunk(
+        formData,
+        uploadId,
+        chunk.index,
+        encryptedChunks.length,
+        controller
+      );
+
+      chunkAssets.push({
+        assetId: data.assetId,
+        chunkNonce: data.chunkNonce,
+        keyNonce: crypto.keyNonce,
+        fileKeyCipher: crypto.fileKeyCipher,
+      });
+    }
+
+    // 🛑 stop if cancelled before finalize
+    if (controller.signal.aborted) return;
+
+    await fetch(`${API}/api/files/complete-upload`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uploadId,
+        fileName: file.name,
+        totalChunks: encryptedChunks.length,
+        chunkAssets,
+        plainSize: file.size,
+      }),
+    });
+
+    setUploadProgress((prev) => ({
+      ...prev,
+      [uploadId]: {
+        ...prev[uploadId],
+        percent: 100,
+        status: "completed",
+      },
+    }));
+
+    await fetchFiles();
+
+  } catch (err) {
+    if (err.name === "AbortError") return;
+
+    setUploadProgress((prev) => ({
+      ...prev,
+      [uploadId]: {
+        ...prev[uploadId],
+        status: "error",
+      },
+    }));
+  } finally {
+    // ✅ CLEANUP controller
+    delete controllersRef.current[uploadId];
+  }
+};
+
+
+const uploadChunk = (formData, uploadId, index, total, controller) => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
+
+    xhr.open("POST", `${API}/api/files/upload-chunk`);
     xhr.withCredentials = true;
 
     const token = localStorage.getItem("jwt");
@@ -117,114 +338,64 @@ const handleUpload = async (e) => {
       xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     }
 
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        onProgress(event.loaded / event.total);
-      }
+    // 🔥 Proper abort handling
+    const onAbort = () => {
+      xhr.abort();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    controller.signal.addEventListener("abort", onAbort);
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+
+      const percent = Math.floor(
+        ((index + e.loaded / e.total) / total) * 100
+      );
+
+      setUploadProgress((prev) => ({
+        ...prev,
+        [uploadId]: {
+          ...prev[uploadId],
+          percent,
+          status: "uploading",
+        },
+      }));
     };
 
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300)
+      controller.signal.removeEventListener("abort", onAbort);
+
+      if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText));
-      else reject(new Error(`Upload failed: ${xhr.status}`));
+      } else {
+        reject(new Error("Chunk upload failed"));
+      }
     };
 
-    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.onerror = () => {
+      controller.signal.removeEventListener("abort", onAbort);
+      reject(new Error("Network error"));
+    };
 
     xhr.send(formData);
   });
 };
 
-  try {
-    for (const file of files) {
-      const uploadId = uuidv4();
 
-      // Initialize progress
-      setUploadProgress((prev) => ({
-        ...prev,
-        [uploadId]: { name: file.name, progress: 0 },
-      }));
-
-      setStatus(`Encrypting ${file.name}...`);
-
-      // Encrypt file in memory
-      const { encryptedChunks, crypto } = await encryptFileChunks(file);
-
-      const chunkAssets = [];
-
-      for (const chunk of encryptedChunks) {
-        const formData = new FormData();
-        formData.append("uploadId", uploadId);
-        formData.append("fileName", file.name);
-        formData.append("chunkIndex", chunk.index);
-        formData.append("chunkData", new Blob([chunk.data]));
-        formData.append("chunkNonce", chunk.nonce);
-        formData.append("totalChunks", encryptedChunks.length);
-        formData.append("keyNonce", crypto.keyNonce);
-        formData.append("fileKeyCipher", crypto.fileKeyCipher);
-
-        // Optionally send file size in first chunk
-        if (chunk.index === 0) formData.append("plainSize", file.size.toString());
-
-        setStatus(
-          `Uploading ${file.name}: chunk ${chunk.index + 1}/${encryptedChunks.length}`
-        );
-
-        // Upload chunk and get asset info
-        const data = await uploadChunkWithProgress(
-          `${API}/api/files/upload-chunk`,
-          formData,
-          (fraction) => {
-            const percent = Math.floor(((chunk.index + fraction) / encryptedChunks.length) * 100);
-            setUploadProgress((prev) => ({
-              ...prev,
-              [uploadId]: { name: file.name, progress: percent },
-            }));
-          }
-        );
-
-        // Collect asset info for finalization
-        chunkAssets.push({
-          assetId: data.assetId,
-          chunkNonce: data.chunkNonce,
-          keyNonce: crypto.keyNonce,
-          fileKeyCipher: crypto.fileKeyCipher,
-        });
-      }
-
-      // Finalize upload on backend
-      await fetch(`${API}/api/files/complete-upload`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uploadId,
-          fileName: file.name,
-          totalChunks: encryptedChunks.length,
-          chunkAssets,
-        }),
-      });
-
-      // Mark upload as complete
-      setUploadProgress((prev) => ({
-        ...prev,
-        [uploadId]: { name: file.name, progress: 100 },
-      }));
-    }
-
-    // Refresh file list
-    await fetchFiles();
-    setStatus("All uploads complete");
-  } catch (err) {
-    console.error("Upload error:", err);
-    setErrorMessage(err.message || "Upload failed");
-    setStatus("Upload failed");
-  } finally {
-    setIsLoading(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+const cancelUpload = (id) => {
+  if (controllersRef.current[id]) {
+    controllersRef.current[id].abort();
   }
-};
 
+  setUploadProgress((prev) => ({
+    ...prev,
+    [id]: {
+      ...prev[id],
+      status: "cancelled",
+    },
+  }));
+};
 
   /* -------------------- Download -------------------- */
 
@@ -303,7 +474,7 @@ const handleUpload = async (e) => {
 /* -------------------- Delete --------------------  */
 
 const deleteFile = async (file) => {
-  if (!confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
+  if (!file) return;
 
   try {
     setIsLoading(true);
@@ -317,24 +488,66 @@ const deleteFile = async (file) => {
       }
     );
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Delete failed: ${res.status} - ${text}`);
-    }
+    if (!res.ok) throw new Error("Delete failed");
 
-    // Optimistic UI update
     setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id));
-    setOpenMenuFor(null);
     setStatus("File deleted");
   } catch (err) {
-    console.error(err);
-    setErrorMessage(err.message || "Delete failed");
-    setStatus("Delete failed");
+    setErrorMessage("Delete failed");
   } finally {
     setIsLoading(false);
+    setFileToDelete(null);
   }
 };
 
+/* -------------------- Rename --------------------  */
+const openRenameModal = (file) => {
+  setRenameFile(file);
+  setNewFileName(file.name);
+};
+
+const handleRename = async () => {
+  try {
+    const res = await fetch(`${API}/api/files/rename`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: renameFile.id,
+        newName: newFileName,
+      }),
+    });
+
+    if (!res.ok) throw new Error();
+
+    setUploadedFiles((prev) =>
+      prev.map((f) =>
+        f.id === renameFile.id ? { ...f, name: newFileName } : f
+      )
+    );
+
+    setRenameFile(null);
+  } catch {
+    setErrorMessage("Rename failed");
+  }
+};
+
+/* -------------------- Info --------------------  */
+const openInfoModal = async (file) => {
+  try {
+    setInfoFile(file);
+
+    const res = await fetch(
+      `${API}/api/files/info?id=${file.id}`,
+      { credentials: "include" }
+    );
+
+    const data = await res.json();
+    setFileInfo(data);
+  } catch {
+    setErrorMessage("Failed to fetch info");
+  }
+};
 
   /* -------------------- Unlock -------------------- */
 
@@ -367,13 +580,16 @@ const deleteFile = async (file) => {
 
   /* -------------------- Logout -------------------- */
 
-  const handleLogout = () => {
-    lockVault();
-    setUnlocked(false);
-    document.cookie =
-      "token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    window.location.href = "/";
-  };
+ const handleLogout = async () => {
+  await fetch(`${API}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  lockVault();
+  setUnlocked(false);
+  window.location.href = "/";
+};
 
   /* -------------------- Effects -------------------- */
 
@@ -424,26 +640,123 @@ const deleteFile = async (file) => {
     };
   }, [unlocked]);
 
+  /* Cleanup modal state when closing */
+  useEffect(() => {
+    if (!showUnlockModal) {
+      setVaultPassword("");
+      setUnlockError(null);
+      setIsClosing(false);
+    }
+  }, [showUnlockModal]);
+
+
+  /* Close dropdowns when clicking outside */
+  useEffect(() => {
+  const handleClickOutside = () => {
+    setOpenMenuFor(null);
+  };
+
+  if (openMenuFor !== null) {
+    window.addEventListener("click", handleClickOutside);
+  }
+
+  return () => {
+    window.removeEventListener("click", handleClickOutside);
+  };
+}, [openMenuFor]);
+
+// Listen for online/offline status
+ useEffect(() => {
+  const handleOnline = () => {
+    setIsOnline(true);
+    setShowOnlineBanner(true);
+
+    // ⏳ Hide after 3 seconds
+    setTimeout(() => {
+      setShowOnlineBanner(false);
+    }, 3000);
+  };
+
+  const handleOffline = () => {
+    setIsOnline(false);
+    setShowOnlineBanner(false); // hide online banner if going offline
+  };
+
+  window.addEventListener("online", handleOnline);
+  window.addEventListener("offline", handleOffline);
+
+  return () => {
+    window.removeEventListener("online", handleOnline);
+    window.removeEventListener("offline", handleOffline);
+  };
+}, []);
+
+/* Slow Network Detection */
+useEffect(() => {
+  const connection =
+    navigator.connection ||
+    navigator.mozConnection ||
+    navigator.webkitConnection;
+
+  if (!connection) return;
+
+  // Move updateSpeed outside so we can reuse
+  const updateSpeed = async () => {
+    try {
+      const start = performance.now();
+      await fetch("/ping"); // small request
+      const duration = performance.now() - start;
+
+      setPing(Math.round(duration));
+      console.log(
+        `Ping duration: ${duration}ms, effectiveType: ${connection.effectiveType}`
+      );
+
+      if (["slow-2g", "2g"].includes(connection.effectiveType) || duration > 1000) {
+        setIsSlow(true);
+        setTimeout(() => setIsSlow(false), 3000);
+      } else {
+        setIsSlow(false);
+      }
+    } catch (err) {
+      console.error("Ping failed", err);
+      setIsSlow(true); // maybe treat failure as slow
+    }
+  };
+
+  updateSpeed(); // initial check
+  connection.addEventListener("change", updateSpeed);
+
+  // Repeat ping every 5s
+  const interval = setInterval(updateSpeed, 5000);
+
+  return () => {
+    connection.removeEventListener("change", updateSpeed);
+    clearInterval(interval);
+  };
+}, []);
 
   /* -------------------- Modal Controls -------------------- */
 
   // Clear completed uploads from progress state after a delay
   useEffect(() => {
-  const completed = Object.entries(uploadProgress).filter(
-    ([_, p]) => p.progress === 100
-  );
+  const timers = [];
 
-  if (completed.length === 0) return;
+  Object.entries(uploadProgress).forEach(([id, p]) => {
+    if (["completed", "error", "cancelled"].includes(p.status)) {
+      const t = setTimeout(() => {
+        setUploadProgress((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }, 2500);
 
-  const t = setTimeout(() => {
-    setUploadProgress((prev) => {
-      const next = { ...prev };
-      for (const [id] of completed) delete next[id];
-      return next;
-    });
-  }, 2000); // keep for 2s
+      timers.push(t);
+    }
+  });
 
-  return () => clearTimeout(t);
+  return () => timers.forEach(clearTimeout);
 }, [uploadProgress]);
 
 
@@ -454,27 +767,22 @@ const deleteFile = async (file) => {
   };
 
   //close modal with animation, then unmount
-const closeModal = () => {
-  setIsModalVisible(false);
-  setShowUnlockModal(false);
-  setVaultPassword("");
-  setUnlockError(null);
-  setIsClosing(false);
-
-  setTimeout(() => {
+  const closeModal = () => {
+    setIsModalVisible(false);
+    setShowUnlockModal(false);
+    setVaultPassword("");
+    setUnlockError(null);
+    setIsClosing(false);
+    setTimeout(() => {
     setShowUnlockModal(false); // unmount only this
-  }, 300);
-};
+    }, 300);
+  };
 
-
-  useEffect(() => {
-    if (!showUnlockModal) {
-      setVaultPassword("");
-      setUnlockError(null);
-      setIsClosing(false);
-    }
-  }, [showUnlockModal]);
-
+  /* Delete Modal */
+   const openDeleteModal = (file) => {
+    setFileToDelete(file);
+    setOpenMenuFor(null);
+  };
 
 
 if (!unlocked) {
@@ -616,7 +924,7 @@ if (!unlocked) {
                 <div className="mb-18">
                   <div className="flex items-center gap-3 mb-5">
                     <Unlock className="w-6 h-6 text-emerald-400" />
-                    <h2 className="text-4xl font-bold text-white">Unlock SafeRaho Vault</h2>
+                    <h2 className="text-xl sm:text-4xl font-bold text-white">Unlock SafeRaho Vault</h2>
                   </div>
 
                   <p className="text-xl text-slate-400 mt-10 wrap-break-words">
@@ -685,18 +993,61 @@ if (!unlocked) {
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl opacity-30 animate-pulse delay-1000"></div>
       </div>
 
+      {/* OFFLINE (always visible) */}
+      <AnimatePresence>
+        { !isOnline && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg"
+          > You're offline. Upload paused.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ONLINE (only temporary) */}
+      <AnimatePresence>
+        {showOnlineBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-green-500/90 text-white px-4 py-2 rounded-lg shadow-lg"
+          > You're back online
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isSlow && isOnline && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-yellow-500/90 text-black px-4 py-2 rounded-lg shadow-lg border border-yellow-400"> 🐢 Slow network detected. Upload may take longer.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="sticky top-0 z-20 backdrop-blur-xl bg-slate-950/80 border-b border-slate-800/50">
+    
+        {/* Ping */}
+        <p className="fixed top-8 sm:top-8 sm:left-3 text-sm text-green-400 font-bold z-50">
+          {ping !== null ? `${ping} ms` : "..."}
+        </p>
+
         <div className="max-w-7xl mx-auto px-3 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <img src="/logo.png" alt="SafeRaho Logo" className="w-25 h-25" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">SafeRaho Vault</h1>
-              <p className="text-xs text-emerald-400/80">🔓 Unlocked & Encrypted</p>
-            </div>
+          <div className="flex items-center gap-4 ml-5 sm:ml-0">
+              <img src="/logo.png" alt="SafeRaho Logo" className="w-15 h-15 sm:w-25 sm:h-25" />
+          </div>
+          <div className="flex flex-col items-center">
+            <h1 className="text-xl sm:text-2xl font-bold text-white">SafeRaho Vault</h1>
+            <p className="text-xs text-emerald-400/80">🔓 Unlocked & Encrypted</p>
           </div>
         </div>
+      </div>
 
       {/* Files Content */}
       <div className="max-w-7xl mx-auto px-6 py-12">
@@ -709,7 +1060,7 @@ if (!unlocked) {
                   <Upload className="w-8 h-8 text-emerald-400" />
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-2">Upload Files</h3>
-                <p className="text-slate-400 text-center mb-6 max-w-sm">
+                <p className="text-slate-400 text-center mb-6 max-w-sm ">
                   Drag and drop your files or click to select. All encryption happens in your browser, zero server knowledge.
                 </p>
                 <div className="px-6 py-3 bg-linear-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-300 font-medium rounded-lg border border-emerald-500/50 group-hover:from-emerald-500/30 group-hover:to-cyan-500/30 transition-all">
@@ -729,49 +1080,116 @@ if (!unlocked) {
         </div>
 
 
-        {/* Upload Progress */}
+    {/* Upload Progress - Floating Bottom Right (Responsive) */}
+        <div className="fixed bottom-4 right-4 z-50 w-[260px] sm:w-[300px] max-w-[90vw]">
+          {Object.keys(uploadProgress).length > 0 && (
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800/50 rounded-xl p-3 sm:p-4 shadow-lg">
 
-        {Object.keys(uploadProgress).length > 0 && (
-          <div className="mb-10 space-y-4">
-            {Object.entries(uploadProgress).map(([id, p]) => (
-              <div
-                key={id}
-                className="bg-slate-900/50 backdrop-blur-md border border-slate-800/50 rounded-2xl p-5 shadow-lg"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="font-medium text-white truncate">
-                    Uploading {p.name}
-                  </div>
-                  <div className="text-sm text-emerald-400 font-mono">
-                    {p.progress}%
-                  </div>
+              {/* HEADER */}
+              <div className="flex justify-between items-center mb-2 sm:mb-3">
+                <div className="text-white text-sm font-medium">
+                  Uploading
                 </div>
 
-                {/* Progress Bar */}
-                <div className="relative w-full h-3 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                   className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-emerald-500 to-cyan-500 transition-all duration-300 ease-out bg-[length:200%_100%] animate-[gradientMove_2s_linear_infinite]"
-                    style={{ width: `${p.progress}%` }}
-                  />
-                  {/* Glow */}
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-linear-to-r from-emerald-400/40 to-cyan-400/40 blur-md"
-                    style={{ width: `${p.progress}%` }}
-                  />
+                <div className="text-[10px] sm:text-xs text-slate-400">
+                  {uploadingCount} • {queuedCount}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
 
+              {/* LIST */}
+              <div className="max-h-52 sm:max-h-60 overflow-y-auto pr-1 space-y-2">
+                <AnimatePresence>
+                  {Object.entries(uploadProgress).map(([id, p]) => (
+                    <motion.div
+                      key={id}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      className="flex items-center justify-between bg-slate-900/50 border border-slate-800 rounded-lg px-2 py-2 group"
+                    >
+
+                      {/* FILE + ICON */}
+                      <div className="flex items-center gap-2 max-w-[110px] sm:max-w-[140px]">
+                        <FileIcon type={getFileType(p.name)} />
+                        <div className="text-xs sm:text-sm text-white truncate">
+                          {p.name}
+                        </div>
+                      </div>
+
+                      {/* RIGHT SIDE */}
+                      <div className="flex items-center gap-2">
+
+                        {/* STATUS */}
+                        <span className="text-[10px] sm:text-xs text-slate-400">
+                          {p.status === "queued" && "Q"}
+                          {p.status === "encrypting" && "Enc"}
+                          {p.status === "uploading" && `${p.percent || 0}%`}
+                          {p.status === "completed" && "✓"}
+                          {p.status === "error" && "Err"}
+                          {p.status === "cancelled" && "X"}
+                        </span>
+
+                        {/* PROGRESS */}
+                        <div className="relative w-6 h-6 sm:w-7 sm:h-7">
+
+                          <svg className="w-6 h-6 sm:w-7 sm:h-7 rotate-[-90deg]">
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              stroke="#1e293b"
+                              strokeWidth="2"
+                              fill="none"
+                            />
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="9"
+                              stroke="url(#grad)"
+                              strokeWidth="2"
+                              fill="none"
+                              strokeDasharray={56}
+                              strokeDashoffset={
+                                56 - (56 * (p.percent || 0)) / 100
+                              }
+                              className="transition-all duration-300"
+                            />
+                            <defs>
+                              <linearGradient id="grad">
+                                <stop offset="0%" stopColor="#10b981" />
+                                <stop offset="100%" stopColor="#06b6d4" />
+                              </linearGradient>
+                            </defs>
+                          </svg>
+
+                          {/* CANCEL */}
+                          {(p.status === "uploading" || p.status === "encrypting") && (
+                            <button
+                              onClick={() => cancelUpload(id)}
+                              className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                            >
+                              <X className="w-3 h-3 text-red-400" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Files Grid */}
         <div>
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-2xl font-bold text-white mb-1">Your Files</h2>
-              <p className="text-slate-400 text-sm">
-                {uploadedFiles.length} encrypted {uploadedFiles.length === 1 ? "file" : "files"}
+              <p className="text-slate-400 text-sm font-bold">
+                <span className="text-orange-400 text-sm bg-orange-400/20 px-2 py-1 rounded-lg">
+                  {uploadedFiles.length}
+                </span> Encrypted {uploadedFiles.length === 1 ? "File" : "Files"}
               </p>
             </div>
             {uploadedFiles.length > 0 && (
@@ -782,10 +1200,8 @@ if (!unlocked) {
           </div>
 
           {uploadedFiles.length === 0 ? (
-            <div className="text-center py-16">
-              <FileIcon className="w-16 h-16 text-slate-700 mx-auto mb-4 opacity-50" />
-              <p className="text-slate-400 text-lg">No files uploaded yet</p>
-              <p className="text-slate-500 text-sm mt-2">Your encrypted files will appear here</p>
+            <div className="w-12 h-12 rounded-xl bg-linear-to-br from-slate-800 to-slate-700 flex items-center justify-center group-hover:from-emerald-500/20 group-hover:to-cyan-500/20 transition-all">
+              <FileIcon type="default" />
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -799,7 +1215,7 @@ if (!unlocked) {
                   {/* File Header with Icon and Menu */ }
                   <div className="flex items-start justify-between mb-4 relative">
                   <div className="w-12 h-12 rounded-xl bg-linear-to-br from-slate-800 to-slate-700 flex items-center justify-center group-hover:from-emerald-500/20 group-hover:to-cyan-500/20 transition-all">
-                    <FileIcon className="w-6 h-6 text-emerald-400" />
+                    <FileIcon type={getFileType(f.name)} className="w-6 h-6 text-emerald-400" />
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -821,22 +1237,37 @@ if (!unlocked) {
                   {/* Dropdown menu */}
                   {openMenuFor === f.id && (
                     <div
-                      className="absolute right-0 top-10 z-30 w-40 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
+                      className="absolute right-0 top-10 z-30 w-44 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        onClick={() => deleteFile(f)}
-                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-900/20 transition cursor-pointer"
+                      {/* <button
+                        onClick={() => downloadFile(f)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 transition"
                       >
+                        Download
+                      </button> */}
+
+                      <button
+                        onClick={() => openRenameModal(f)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 transition"
+                      >
+                        Rename
+                      </button>
+
+                      <button
+                        onClick={() => openInfoModal(f)}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 transition"
+                      >
+                        File Info
+                      </button>
+
+                      <div className="border-t border-slate-700" />
+                      <button
+                        onClick={() => openDeleteModal(f)}
+                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-900/20 transition cursor-pointer">
                         Delete
                       </button>
 
-                      {/* Future actions go here */}
-                      {/* 
-                      <button className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">
-                        Rename (soon)
-                      </button>
-                      */}
                     </div>
                   )}
                 </div>
@@ -850,13 +1281,15 @@ if (!unlocked) {
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Size</span>
                       <span className="text-slate-300 font-medium">
-                        {(f.size / 1024 / 1024).toFixed(2)} MB
+                        {f.size
+                          ? `${(f.size / 1024 / 1024).toFixed(2)} MB`
+                          : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-400">Uploaded</span>
                       <span className="text-slate-300 font-medium">
-                        {new Date(f.uploadedAt).toLocaleDateString()}
+                        {new Date(f.uploadedAt).toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -882,12 +1315,182 @@ if (!unlocked) {
       </div>
 
       {/* Back to dashboard */}
-      <button
+      {/* <button
         onClick={() => window.location.href = "/dashboard"}
         className="fixed bottom-6 left-6 px-4 py-3 bg-slate-900/80 backdrop-blur-xl border border-slate-800/50 rounded-xl text-sm text-slate-300  hover:bg-cyan-500 hover:text-white transition-colors duration-300 cursor-pointer"
       >
         ← Back to Dashboard
-      </button>
+      </button> */}
+
+      <AnimatePresence>
+          {fileToDelete && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center px-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                onClick={() => setFileToDelete(null)}
+              />
+
+              {/* Modal */}
+              <motion.div
+                className="relative z-10 w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-xl"
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+              >
+                <h2 className="text-lg font-semibold text-white mb-2">
+                  Delete File
+                </h2>
+
+                <p className="text-sm text-slate-400 mb-6">
+                  Are you sure you want to delete{" "}
+                  <span className="text-white font-medium">
+                    {fileToDelete.name}
+                  </span>
+                  ? This cannot be undone.
+                </p>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setFileToDelete(null)}
+                    className="px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 rounded-lg"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={() => deleteFile(fileToDelete)}
+                    className="px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg cursor-pointer transition-all"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+
+       <AnimatePresence>
+        {renameFile && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setRenameFile(null)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ duration: 0.2 }}
+              className="bg-slate-900/90 backdrop-blur-sm p-6 rounded-xl z-10 w-96 border border-slate-700 shadow-xl"
+            >
+              <h2 className="text-white text-lg mb-4 font-semibold">
+                Rename File
+              </h2>
+
+              {/* Input */}
+              <input
+                value={newFileName}
+                onChange={(e) => setNewFileName(e.target.value)}
+                className="w-full p-2 bg-slate-800 text-white rounded mb-4 
+                          outline-none border border-slate-700
+                          focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30
+                          transition-all"
+                placeholder="Enter new name..."
+              />
+
+              {/* Buttons */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setRenameFile(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-600 
+                            text-slate-300 transition-all duration-200
+                            hover:bg-slate-800 hover:text-white
+                            active:scale-95"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  onClick={handleRename}
+                  className="px-4 py-2 rounded-lg bg-emerald-500 text-black font-medium
+                            transition-all duration-200
+                            hover:bg-emerald-400
+                            hover:shadow-[0_0_12px_rgba(16,185,129,0.6)]
+                            active:scale-95"
+                >
+                  Rename
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
+      <AnimatePresence>
+      {infoFile && fileInfo && (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setInfoFile(null)} />
+
+          <div className="bg-slate-900 p-6 rounded-xl z-10 w-96 space-y-3">
+            <h2 className="text-white text-lg mb-2 font-bold">File Info</h2>
+
+            <p>Name: {fileInfo.name}</p>
+            <p>Size: {fileInfo.size ? `${(fileInfo.size / 1024 / 1024).toFixed(2)} MB` : "—"}</p>
+            <p>Uploaded: {new Date(fileInfo.uploadedAt).toLocaleString()}</p>
+            <p>Chunks: {fileInfo.totalChunks}</p>
+            <div className="flex items-center justify-between">
+            <span
+              className={`px-2 py-1 text-sm font-semibold rounded-md uppercase tracking-wide
+                ${
+                  ["png", "jpg", "jpeg", "webp", "gif"].includes(getFileTypeLabel(fileInfo))
+                    ? "bg-emerald-500/20 text-emerald-400"
+                    : getFileTypeLabel(fileInfo) === "pdf"
+                    ? "bg-red-500/20 text-red-400"
+                    : getFileTypeLabel(fileInfo) === "zip"
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : getFileTypeLabel(fileInfo) === "docx"
+                    ? "bg-blue-500/20 text-blue-400"
+                    : ["xlsx", "csv", "pptx"].includes(getFileTypeLabel(fileInfo))
+                    ? "bg-orange-500/20 text-orange-400"
+                    : getFileTypeLabel(fileInfo) === "mp4"
+                    ? "bg-purple-500/20 text-purple-400"
+                    : "bg-slate-700 text-slate-200"
+
+                }
+              `}
+            >
+              {getFileTypeLabel(fileInfo)}
+            </span>
+          </div>
+
+           <div className="flex justify-end">
+              <button
+                onClick={() => setInfoFile(null)}
+                className="px-4 py-2 rounded-lg border border-slate-600 bg-slate-800/50 text-slate-200 transition-all duration-200 hover:bg-slate-700 hover:text-white hover:shadow-[0_0_10px_rgba(148,163,184,0.5)] active:scale-95 cursor-pointer"
+                > Close
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
     </div>
   );
 }

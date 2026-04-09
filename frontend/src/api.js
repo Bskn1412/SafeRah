@@ -7,11 +7,36 @@ export const api = axios.create({
   withCredentials: true
 });
 
-// Attach JWT from localStorage to every request
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem("jwt");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+
+api.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const originalRequest = err.config;
+
+    if (err.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        await api.post("/auth/refresh"); // Refresh token cookie used automatically
+        return api(originalRequest);     // Retry original request
+      } catch (error) {
+        // refresh failed → logout user
+        window.location.href = "/login";
+      }
+    }
+
+    return Promise.reject(err);
   }
-  return config;
-});
+);
+
+
+
+
+// // Attach JWT from localStorage to every request
+// api.interceptors.request.use(config => {
+//   const token = localStorage.getItem("jwt");
+//   if (token) {
+//     config.headers.Authorization = `Bearer ${token}`;
+//   }
+//   return config;
+// });

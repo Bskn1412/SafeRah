@@ -107,9 +107,7 @@ export async function verifyAuthenticator(
   token
 ) {
   const passphrase = process.env.APP_2FA_SECRET;
-  if (!passphrase) {
-    throw new Error("Server config error: APP_2FA_SECRET missing");
-  }
+  if (!passphrase) throw new Error("APP_2FA_SECRET not set");
 
   const key = await deriveKeyFromPassphrase(passphrase, userEmail);
 
@@ -119,10 +117,22 @@ export async function verifyAuthenticator(
     key
   );
 
-  return authenticator.verify({
-    token,
-    secret: decryptedSecret,
-    window: 2,
-  });
-  console.log("Decrypted TOTP secret:", decryptedSecret);
+  console.log("----- DEBUG 2FA -----");
+  console.log("Token from user:", token);
+  console.log("Decrypted secret:", decryptedSecret);
+
+  const check = authenticator.checkDelta(token, decryptedSecret);
+  console.log("Raw checkDelta result:", check);
+
+  if (check === null) {
+    return { success: false, reason: "invalid", drift: 0 };
+  }
+
+  // Normalize drift: if number → use as is, if object → use .delta
+  const delta = typeof check === "number" ? check : check?.delta ?? 0;
+
+  return {
+    success: true,
+    drift: delta, // always numeric
+  };
 }

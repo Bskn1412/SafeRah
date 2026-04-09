@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Shield, ArrowRight, Check, Copy as CopyIcon } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
+import { toast } from "react-toastify";
 import { api } from "../api";
 
 export default function Authenticator() {
@@ -10,7 +11,6 @@ export default function Authenticator() {
   const [qrUri, setQrUri] = useState("");
   const [setupKey, setSetupKey] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [msg, setMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
@@ -23,13 +23,23 @@ export default function Authenticator() {
     startSetup();
   }, []);
 
+ // Auto-Redirect after success
+  useEffect(() => {
+  if (step === "DONE") {
+    const timer = setTimeout(() => {
+      goToLogin();
+    }, 3000); // 3 seconds
+
+    return () => clearTimeout(timer);
+  }
+}, [step]);
+
   /* ---------------------------------- */
   /* Start 2FA Setup                     */
   /* ---------------------------------- */
   const startSetup = async () => {
     setIsLoading(true);
-    setMsg(null);
-
+    
     try {
       const res = await api.post("/auth/2fa/setup");
       const uri = res.data.otpauthUri;
@@ -39,10 +49,9 @@ export default function Authenticator() {
       const parsed = new URL(uri);
       const secret = parsed.searchParams.get("secret");
       setSetupKey(secret || "");
-
       setStep("VERIFY");
     } catch {
-      setMsg({ type: "error", text: "Failed to generate authenticator QR" });
+      toast.error({type: "error", render: "Failed to generate authenticator QR" });
     } finally {
       setIsLoading(false);
     }
@@ -85,22 +94,32 @@ export default function Authenticator() {
   /* Verify OTP                          */
   /* ---------------------------------- */
   const verifyOtp = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setMsg(null);
+  e.preventDefault();
 
-    try {
-      const code = otp.join("");
-      await api.post("/auth/2fa/verify-setup", { token: code });
+  if (isLoading) return;
+  setIsLoading(true);
 
-      setStep("DONE");
-      setMsg({ type: "success", text: "Authenticator enabled successfully!" });
-    } catch {
-      setMsg({ type: "error", text: "Invalid authentication code" });
-    } finally {
-      setIsLoading(false);
+  try {
+    const code = otp.join("");
+    const res = await api.post("/auth/2fa/verify-setup", { token: code });
+
+    // ✅ Use backend message
+    if (res.data.driftWarning) {
+      toast.warning(res.data.message);  // toast shows drift warning
+    } else {
+      toast.success(res.data.message);  // toast shows "2FA enabled successfully"
     }
-  };
+
+    setStep("DONE");
+  } catch (err) {
+    console.log("FULL ERROR:", err);
+    console.log("RESPONSE:", err.response);
+
+    toast.error(err.response?.data?.message || "Invalid authentication code");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   /* ---------------------------------- */
   /* Helpers                             */
@@ -124,20 +143,7 @@ export default function Authenticator() {
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-black to-emerald-500/20" />
       <div className="absolute inset-0 bg-[size:50px_50px] bg-[linear-gradient(0deg,transparent_24%,rgba(6,182,212,0.05)_25%,rgba(6,182,212,0.05)_26%,transparent_27%)]" />
 
-      {/* Toast */}
-      {msg && (
-        <div
-          className={`fixed top-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl backdrop-blur-xl font-semibold
-            ${
-              msg.type === "success"
-                ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-black"
-                : "bg-gradient-to-r from-red-500 to-pink-500 text-white"
-            }`}
-        >
-          {msg.text}
-        </div>
-      )}
-
+  
       {/* Card */}
       <div className="relative z-10 max-w-md w-full bg-black/40 border border-cyan-500/30 backdrop-blur-2xl rounded-2xl p-8 space-y-6 shadow-2xl shadow-cyan-500/20">
 

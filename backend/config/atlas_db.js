@@ -12,9 +12,9 @@ export async function connectDB() {
       autoIndex: true
     });
     isConnected = true;
-    console.log("✅ MongoDB Atlas connected");
+    console.log("MongoDB Atlas connected");
   } catch (err) {
-    console.error("❌ MongoDB connection error:", err);
+    console.error("MongoDB connection error:", err);
     process.exit(1);
   }
 }

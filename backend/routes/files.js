@@ -1,3 +1,5 @@
+// routes/files.js
+// For local file uploads to GridFS (legacy, not used by frontend anymore)
 import express from "express";
 import multer from "multer";
 import { ObjectId } from "mongodb";

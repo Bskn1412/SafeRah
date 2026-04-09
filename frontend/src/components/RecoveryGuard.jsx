@@ -11,7 +11,7 @@ export default function RecoveryGuard({ children }) {
       try {
         const res = await api.get("/auth/me");
         if (!res.data.recoveryEnabled) {
-          navigate("/setup-recovery", { replace: true });
+          navigate("/register", { replace: true });
         }
       } catch (err) {
         navigate("/login", { replace: true });

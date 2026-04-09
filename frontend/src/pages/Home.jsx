@@ -32,6 +32,9 @@ export default function Home() {
                 <a href="#home" className="text-lg text-foreground/70 hover:text-foreground transition-colors">
                   Home
                 </a>
+                <a href="#stats" className="text-lg text-foreground/70 hover:text-foreground transition-colors">
+                  Stats
+                </a>
                 <a href="#features" className="text-lg text-foreground/70 hover:text-foreground transition-colors">
                   Features
                 </a>
@@ -90,8 +93,8 @@ export default function Home() {
               </span>
             </h1>
 
-            <p className="text-base sm:text-xl md:text-2xl text-foreground/80 max-w-2xl mx-auto">
-              Zero-Knowledge File Encryption. Your Files. Your Keys. Complete Privacy.
+            <p className="text-base sm:text-xl md:text-2xl text-foreground/80 max-w-2xl mx-auto"> “ The privacy you deserve, Reimagined. Forever secure with Zero-knowledge. ”
+              {/* Zero-Knowledge File Encryption. Your Files. Your Keys. Complete Privacy. */}
             </p>
           </div>
 
@@ -100,9 +103,11 @@ export default function Home() {
               <button className="bg-primary hover:bg-primary/90 text-primary-foreground 
                 px-6 sm:px-8 py-3 rounded-md flex items-center justify-center gap-2 
                 transition-all duration-300 hover:scale-105 cursor-pointer">
-                Get Started
+                Get Started  <ArrowRight className="w-5 h-5" />
               </button>
+              
             </Link>
+          
 
             <button className="glass-btn border hover:bg-card bg-transparent 
               px-6 sm:px-8 py-3 rounded-md flex items-center justify-center 
@@ -149,6 +154,7 @@ export default function Home() {
               <p className="font-semibold mb-3">Product</p>
               <ul className="space-y-2 text-sm text-foreground/60">
                 <li><a href="#home" className="hover:text-foreground">Home</a></li>
+                <li><a href="#stats" className="hover:text-foreground">Stats</a></li>
                 <li><a href="#features" className="hover:text-foreground">Features</a></li>
                 <li><a href="#security" className="hover:text-foreground">Security</a></li>
                 <li><a href="#benefits" className="hover:text-foreground">Pricing</a></li>

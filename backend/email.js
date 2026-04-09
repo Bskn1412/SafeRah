@@ -1,10 +1,16 @@
-// npm install @sendgrid/mail
 import dotenv from "dotenv";
-dotenv.config(); // ← THIS MUST BE FIRST
+dotenv.config();
 
-import sgMail from "@sendgrid/mail";
+import nodemailer from "nodemailer";
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Gmail SMTP transporter
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 export function generateOtp(length = 6) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -66,10 +72,10 @@ export async function sendOtpEmail(email, otp) {
 </div>
 `;
 
-  await sgMail.send({ 
+  await transporter.sendMail({
     to: email,
     from: {
-      email: "jokerdeva18@gmail.com", // verified single sender
+      address: process.env.EMAIL_USER,
       name: "SafeRaho",
     },
     subject: "Your SafeRaho verification code",

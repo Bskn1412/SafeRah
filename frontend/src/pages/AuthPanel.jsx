@@ -116,7 +116,7 @@ export default function AuthPanel() {
 
           <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 h-full">
             {/* LEFT TEXT */}
-            <div className="flex flex-col justify-center px-4 sm:px-6 md:px-12 text-white">
+            <div className="flex flex-col justify-center p-5 px-4 sm:px-6 md:px-12 text-white">
               <AnimatePresence mode="wait">
                 {mode === "login" ? (
                   <motion.div
@@ -127,17 +127,22 @@ export default function AuthPanel() {
                     exit="exit"
                     className="space-y-4 sm:space-y-5 md:space-y-6"
                   >
-                    <h2 className="text-5xl font-black">
-                      Welcome Back
-                    </h2>
+                    <div className="flex flex-col md:flex-row md:items-end md:gap-3">
+                      <h2 className="text-5xl font-black">
+                        Welcome
+                      </h2>
+                      <span className="text-2xl sm:text-5xl font-black">
+                        Back
+                      </span>
+                    </div>
                     <p className="text-sm sm:text-base md:text-lg text-white/70">
-                      Access your secure vault and manage encrypted files.
+                      Access your secure vault.
                     </p>
                     <button
                       onClick={toggleMode}
                       className="w-full sm:w-fit px-6 sm:px-8 py-3 rounded-full border border-white/40 hover:bg-white/10 cursor-pointer"
                     >
-                      New? Sign up
+                      New to SafeRaho? Sign up
                     </button>
                   </motion.div>
                 ) : (
@@ -149,8 +154,9 @@ export default function AuthPanel() {
                     exit="exit"
                     className="space-y-4 sm:space-y-5 md:space-y-6"
                   >
+                    <span className="text-2xl sm:text-5xl font-black">Join</span>
                     <h2 className="text-5xl font-black">
-                      Join SafeRaho
+                      SafeRaho
                     </h2>
                     <p className="text-sm sm:text-base md:text-lg text-white/70">
                       Military-grade encryption starts here.

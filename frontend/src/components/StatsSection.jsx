@@ -16,7 +16,7 @@ export function StatsSection() {
 
   return (
     <section
-      id="security"
+      id="stats"
       className="relative px-4 sm:px-6 lg:px-8 py-14 sm:py-16 md:py-20 max-w-7xl mx-auto"
     >
       <ScrollReveal>

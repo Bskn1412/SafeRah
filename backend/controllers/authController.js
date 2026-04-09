@@ -3,7 +3,8 @@ import User from "../models/User.js";
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
 import { createAuthenticatorSecret, verifyAuthenticator } from "../utils/authenticator.js";
-import { sendOtpEmail, generateOtp } from "../email-test.js";
+import { updateUserState } from "../utils/userState.js";
+import { sendOtpEmail, generateOtp } from "../email.js";
 
 // Registration + auto-login
 export const register = async (req, res) => {
@@ -126,19 +127,43 @@ export const login = async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
+
+
+
+
+
+    // Access token (SHORT)
+    const accessToken = jwt.sign(
       { id: user._id, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "15m" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "None",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+        // Refresh token (LONG)
+        const refreshToken = jwt.sign(
+          { id: user._id },
+          process.env.REFRESH_SECRET,
+          { expiresIn: "7d" }
+        );
+        user.refreshToken = refreshToken; // Save refresh token in DB for later verificatiion
+        await user.save();
+
+        res.cookie("token", accessToken, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "Strict",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "Strict",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+
+
     return res.json({
       success: true,
       message: "Login successful",
@@ -188,42 +213,45 @@ export const setup2FA = async (req, res) => {
 
 // Verify 2FA Setup
 export const verify2FASetup = async (req, res) => {
-
   try {
     const { token } = req.body;
     const user = await User.findById(req.user.id);
-
-
-    console.log("req.user:", req.user);
-
-
-    console.log("User from DB:", user);
-    console.log("twoFactorSecret:", user?.twoFactorSecret);
-
 
     if (!user || !user.twoFactorSecret) {
       return res.status(400).json({ message: "2FA not initialized" });
     }
 
-    const isValid = await verifyAuthenticator(
+    const result = await verifyAuthenticator(
       user.twoFactorSecret,
       user.email,
       token
     );
 
-    if (!isValid) {
+    if (!result.success) {
       return res.status(400).json({ message: "Invalid code" });
     }
 
+    // Enable 2FA even if drift warning exists
     user.twoFactorEnabled = true;
+    updateUserState(user);
     await user.save();
 
-    res.json({ message: "2FA enabled successfully" });
+    if (result.drift !== 0) {
+      // Only show warning, but still enable 2FA
+      return res.status(200).json({
+        driftWarning: true,
+        message:
+          "Code accepted, but your device time is out of sync. Enable automatic time.",
+      });
+    }
+
+    return res.json({ message: "2FA enabled successfully" });
   } catch (err) {
     console.error("verify2FASetup error:", err);
-    res.status(500).json({ message: "Verification failed" });
+    return res.status(500).json({ message: "Verification failed" });
   }
 };
+
 
 // Forgot Password - Step 1: Email Check
 export const forgotPassword = async (req, res) => {
@@ -281,37 +309,63 @@ export const forgotPassword = async (req, res) => {
 // Verify TOTP (for Forgot/Recovery) - Unchanged
 export const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
-  console.log("Verify OTP called with:", { email, otp }); // ← Log input
+  console.log("Verify OTP called with:", { email, otp });
 
   try {
     const user = await User.findOne({ email });
+
     if (!user || !user.twoFactorSecret || !user.recovery?.enabled) {
-      return res.status(403).json({ message: "Recovery not enabled for this account" });
+      return res.status(403).json({
+        message: "Recovery not enabled for this account"
+      });
     }
 
-    const isValid = await verifyAuthenticator(user.twoFactorSecret, user.email, otp);
-    console.log("TOTP valid?", isValid); // ← Log result
+    const result = await verifyAuthenticator(
+      user.twoFactorSecret,
+      user.email,
+      otp
+    );
 
-    if (isValid) {
-        const recoveryToken = jwt.sign(
-        { userId: user._id, purpose: "recovery" },
-        process.env.RECOVERY_SECRET,
-        { expiresIn: "5m" }
-     );
-      console.log("Recovery token generated (first 30 chars):", recoveryToken.substring(0, 30) + "...");
-
-      res.json({ recoverySession: recoveryToken, verificationStatus: "success" });
-
-    } else {
-      res.status(401).json({ message: "Invalid code", verificationStatus: "failure" });
+    // ❌ Invalid OTP
+    if (!result.success) {
+      return res.status(400).json({
+        message: "Invalid code",
+        verificationStatus: "failure"
+      });
     }
+
+    // 🔥 Drift warning (time sync issue)
+    if (result.drift !== 0) {
+      return res.status(200).json({
+        driftWarning: true,
+        message: "Code accepted, but your device time may be incorrect."
+      });
+    }
+
+    // ✅ Success - generate recovery token
+    const recoveryToken = jwt.sign(
+      { userId: user._id, purpose: "recovery" },
+      process.env.RECOVERY_SECRET,
+      { expiresIn: "5m" }
+    );
+
+    console.log(
+      "Recovery token generated (first 30 chars):",
+      recoveryToken.substring(0, 30) + "..."
+    );
+
+    return res.json({
+      recoverySession: recoveryToken,
+      verificationStatus: "success"
+    });
+
   } catch (err) {
     console.error("Verify OTP error:", err);
-    res.status(500).json({ message: "Verification error" });
+    return res.status(500).json({
+      message: "Verification error"
+    });
   }
 };
-
-
 
 // Recovery Metadata - Accepts both login and recovery tokens
 // backend/controllers/authController.js
@@ -414,7 +468,7 @@ export const enableRecovery = async (req, res) => {
     nonce,
     salt
   };
-
+  updateUserState(user); 
   await user.save();
   res.json({ message: "Recovery enabled successfully" });
 };
@@ -423,7 +477,7 @@ export const enableRecovery = async (req, res) => {
 // Get Current User Info (Unchanged)
 export const me = async (req, res) => {
   const user = await User.findById(req.user.id).select(
-    "name email recovery.enabled"
+    "name email recovery.enabled twoFactorEnabled signupStage accountStatus isVerified"
   );
 
   if (!user) {
@@ -433,10 +487,12 @@ export const me = async (req, res) => {
   res.json({
     name: user.name,
     email: user.email,
-    recoveryEnabled: !!user.recovery?.enabled
+    recoveryEnabled: !!user.recovery?.enabled,
+    twoFactorEnabled: user.twoFactorEnabled,
+    signupStage: user.signupStage,   // ✅ IMPORTANT
+    accountStatus: user.accountStatus
   });
 };
-
 
 
 
@@ -491,6 +547,7 @@ export const verifyEmail = async (req, res) => {
   user.isVerified = true;
   user.otp = undefined;
   user.otpExpiresAt = undefined;
+  updateUserState(user); 
   await user.save();
 
   // ✅ Issue JWT after verification
@@ -548,4 +605,80 @@ export const resendOtp = async (req, res) => {
   await sendOtpEmail(user.email, otp);
 
   res.json({ message: "If the email exists, OTP was resent" });
+};
+
+
+// Logout - Clear cookies
+export const logout = (req, res) => {
+  res.cookie("token", "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "Strict",
+    expires: new Date(0),
+  });
+
+  res.cookie("refreshToken", "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "Strict",
+    expires: new Date(0),
+  });
+
+  res.status(200).json({ message: "Logged out successfully" });
+};
+
+
+// Refresh Token Handler
+export const refreshTokenHandler = async (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (!token) {
+    return res.status(401).json({ message: "No refresh token" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.REFRESH_SECRET);
+
+    const user = await User.findById(decoded.id);
+
+    if (!user || user.refreshToken !== token) {
+      return res.status(403).json({ message: "Token mismatch" });
+    }
+
+    // 🔥 ROTATE REFRESH TOKEN
+    const newRefreshToken = jwt.sign(
+      { id: user._id },
+      process.env.REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // New access token
+    const newAccessToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    res.cookie("token", newAccessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({ message: "Refreshed" });
+
+  } catch {
+    return res.status(403).json({ message: "Invalid refresh token" });
+  }
 };

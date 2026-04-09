@@ -6,6 +6,7 @@ import { generateRecoveryPhrase, wrapMasterKeyWithRecovery } from "../crypto/rec
 import jsPDF from "jspdf";
 import { toast } from "react-toastify";
 import "../toast.css";
+import logo from "../assets/logo1.png";
 
 export function signupLogic(form, isLoading, setIsLoading, passwordHints) {
   const [showRecovery, setShowRecovery] = useState(false);
@@ -18,12 +19,9 @@ export function signupLogic(form, isLoading, setIsLoading, passwordHints) {
   const [otp, setOtp] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
 
-
   const email =
   form.email?.toLowerCase().trim() ||
   localStorage.getItem("pendingVerificationEmail");
-
-
 
   const errorMap = {
   MISSING_FIELDS: "Please fill in all fields",
@@ -34,10 +32,6 @@ export function signupLogic(form, isLoading, setIsLoading, passwordHints) {
   SERVER_ERROR: "Server error. Try again later",
 };
 
-
-
-
- 
   const submit = async (e) => {
   e.preventDefault();
   if (isLoading) return;
@@ -233,7 +227,8 @@ const handleResendOtp = async () => {
     toast.success("Recovery phrase copied!");
   };
 
- const handleDownloadPDF = () => {
+
+const handleDownloadPDF = () => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -247,19 +242,25 @@ const handleResendOtp = async () => {
   doc.setFillColor(15, 23, 42); // dark navy
   doc.rect(0, 0, pageWidth, 40, "F");
 
+  // doc.setFillColor(255, 255, 255); // grey
+  // doc.circle(margin + 7, 22, 6, "F");
+  // ✅ Logo
+  doc.addImage(logo, "PNG", margin, 14, 15, 15);
+
   doc.setFont("helvetica", "bold"); 
   doc.setFontSize(24);
   doc.setTextColor(56, 189, 248); // cyan
-  doc.text("SafeRaho", margin, 25);
+  doc.text("SafeRaho", margin + 12, 25);
 
-  doc.setFontSize(14);
-  doc.setTextColor(226, 232, 240); // light gray
-  doc.text("Recovery Phrase Backup", margin, 33);
+  doc.setFont("helvetica", "normal"); 
+  doc.setFontSize(10);
+  doc.setTextColor(211, 211, 211); // light gray
+  doc.text("Secure Recovery Phrase Backup", margin + 5, 33);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.setTextColor(147, 51, 234); // violet
-  doc.text(`${form.email}`, pageWidth - margin, 25, {
+  doc.text(`${form.email}`, pageWidth - margin, 23, {
     align: "right",
   });
 
@@ -268,40 +269,69 @@ const handleResendOtp = async () => {
   doc.text(
     `Created on ${new Date().toLocaleDateString('en-US', { month: 'long' })}, ${((d) => d + (d > 3 && d < 21 ? 'th' : ['th', 'st', 'nd', 'rd'][d % 10] || 'th'))(new Date().getDate())}, ${new Date().getFullYear()}`,
     pageWidth - margin,
-    33,
+    32,
     { align: "right" }
   );
 
-  y = 55;
+  y += 25;
 
   /* ================= WARNING BOX ================= */
-  doc.setFillColor(254, 243, 199); // soft amber
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 3, 3, "F");
+  doc.setFillColor(255, 251, 235); // soft amber
+  doc.setDrawColor(245, 158, 11); // amber border
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 28, 4, 4, "FD");
 
-  doc.setFontSize(11);
-  doc.setTextColor(146, 64, 14); // dark amber
+    doc.setFillColor(245, 158, 11); // amber fill
+    doc.circle(margin + 10, y + 14, 6, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255); // white
+    doc.text("!", margin + 10, y + 16, { align: "center" });
+
+  doc.setFontSize(12);
+  doc.setTextColor(120, 53, 15); // dark amber
   doc.setFont("helvetica", "bold");
-  doc.text("IMPORTANT SECURITY NOTICE", margin + 4, y + 7);
+  doc.text("IMPORTANT SECURITY NOTICE", margin + 22, y + 10);
 
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(146, 64, 14); // dark amber
+   doc.text(
+    "Anyone with this recovery phrase has full access to your vault.",
+    margin + 22,
+    y + 18
+  );
   doc.text(
-    "Anyone with this recovery phrase can fully access your vault.\nStore it offline. Never upload, email, or share it with anyone.",
-    margin + 4,
-    y + 13
+    "Never upload, email, screenshot, or share this document.",
+    margin + 22,
+    y + 24
   );
 
   y += 35;
 
   /* ================= RECOVERY PHRASE BOX ================= */
+  doc.setFillColor(59, 130, 246); // blue
+  doc.roundedRect(margin, y, 4, 20, 2, 2, "F");
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(15, 23, 42);
-  doc.text("Recovery Phrase", margin, y);
+  doc.text("Recovery Phrase", margin + 10, y + 7);
 
-  y += 6;
+  y += 4;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(51, 65, 85);
+  doc.text(
+    "If you lose access to your vault, this phrase lets you recover access and data.Keep it safe and private.",
+    margin + 10, y + 12,
+  );
+
+  y += 20;
 
   doc.setDrawColor(203, 213, 225);
-  doc.setFillColor(248, 250, 252);
+  doc.setFillColor(248, 250, 252); // light slate
   doc.roundedRect(margin, y, pageWidth - margin * 2, 60, 4, 4, "FD");
 
   y += 10;
@@ -316,52 +346,98 @@ const handleResendOtp = async () => {
     if (i % 2 === 1) y += 8;
   });
 
-  y += 15;
+  y += 10;
 
-  /* ================= CANONICAL FORMAT ================= */
+/* ================= CANONICAL FORMAT ================= */
+  doc.setFillColor(59, 130, 246); // blue
+  doc.roundedRect(margin, y, 4, 18, 2, 2, "F");
+
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("Canonical Format (for recovery)", margin, y);
-
-  y += 6;
-  doc.setFont("courier", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(51, 65, 85);
-
-  doc.setFillColor(241, 245, 249);
-  doc.roundedRect(margin, y, pageWidth - margin * 2, 18, 3, 3, "F");
-  doc.text(canonical, margin + 4, y + 8, {
-    maxWidth: pageWidth - margin * 2 - 8,
-  });
-
-  y += 28;
-
-  /* ================= SAFE STORAGE TIPS ================= */
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(16);
   doc.setTextColor(15, 23, 42);
-  doc.text("Safe Storage Tips", margin, y);
+  doc.text("Copy - Paste Format", margin + 10, y + 6);
 
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(51, 65, 85);
+  // subtitle
+  doc.setFont("helvetica", "normal"); // ✅ FIXED
+  doc.setFontSize(12);
+  doc.setTextColor(100, 100, 100);
+  doc.text(
+    "Directly copy-pasteable format for recovery.",
+    margin + 10,
+    y + 14
+  );
 
+  y += 22;
+
+  /* ================= BOX ================= */
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252); // dark slate (30,41,52)
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 22, 4, 4, "FD");
+
+  // text inside box
+  doc.setFont("courier", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42); // yellow
+
+  if (canonical) {
+    doc.text(String(canonical), margin + 6, y + 10, {
+      maxWidth: pageWidth - margin * 2 - 12,
+    });
+  }
+
+  y += 25;
+/* ================= SAFE STORAGE TIPS ================= */
   const tips = [
-    "• Write the phrase on paper and store it in a secure location",
-    "• Never store this file on cloud services or email",
-    "• Do not take screenshots or photos of the phrase",
-    "• Consider keeping a second copy in a separate physical location",
-    "• Anyone with this phrase has full access to your vault",
+    "• Consider keeping a second copy in a separate physical location.",
+    "• Write the phrase on paper and store it in a secure location.",
+    "• Anyone with this phrase has full access to your vault.",
+    "• Do not take screenshots or photos of the phrase.",
+    "• Never store this file on cloud services or email."
   ];
 
+
+  doc.setFillColor(59, 130, 246); // left accent (kept same variable usage)
+  doc.roundedRect(margin, y, 4, 10, 2, 2, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(22, 163, 74); // green title
+  doc.text("Safe Storage Tips", margin + 10, y + 7);
+
+  y += 15;
+
+  // calculate dynamic height based on tips
+  const lineHeight = 5;
+  const padding = 5;
+  const boxHeight = tips.length * lineHeight + padding * 2;
+
+  // box with light green background
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(240, 253, 244); // light green
+  doc.roundedRect(margin, y, pageWidth - margin * 2, boxHeight, 4, 4, "FD");
+
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(22, 163, 74);
+
+  // starting Y inside box
+  let innerY = y + padding + 2;
+
   tips.forEach(tip => {
-    doc.text(tip, margin, y);
-    y += 6;
+    doc.text(tip, margin + 10, innerY);
+    innerY += lineHeight;
   });
 
+  // move cursor after box
+  y += boxHeight + 10;
+
+
   /* ================= FOOTER ================= */
-  doc.setFontSize(9);
+  // doc.setDrawColor(226, 232, 240);
+  // doc.line(margin, pageHeight - 20, pageWidth - margin, pageHeight - 20);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(148, 163, 184);
   doc.text(
     `Generated on ${new Date().toLocaleString()}`,
@@ -373,15 +449,17 @@ const handleResendOtp = async () => {
     margin,
     pageHeight - 6
   );
-
-  toast.success("Recovery phrase downloaded securely");
-
+   
+  /* ================= SAVE PDF ================= */
   doc.save(
     `SafeRaho-Recovery-Phrase-${new Date().toISOString().split("T")[0]}.pdf`
   );
+
+  toast.success("Recovery phrase downloaded securely");
+
 };
 
-   const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
+  const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
 
   return {
     submit,
