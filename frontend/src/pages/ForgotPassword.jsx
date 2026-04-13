@@ -1,18 +1,12 @@
- "use client";
+import { useState, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { Lock, Mail, ArrowRight, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { api } from '../api';
+import { toast } from 'react-toastify';
 
-import { useState, useRef } from "react";
-import { Mail, KeyRound, Shield, CheckCircle, Copy } from "lucide-react";
-import { api } from "../api";
-import { unwrapWithRecovery, rewrapWithPassword, wrapMasterKeyWithRecovery } from "../crypto/recovery";
-
+// Crypto functions
+import { unwrapWithRecovery, wrapMasterKeyWithRecovery } from "../crypto/recovery";
 import { rotateVaultPassword } from "../crypto/rotateVaultPassword";
-
-import { lockVault } from "../crypto/vault";
-
-import { toast } from "react-toastify";
-import "../global.css";
-
-import OTPInput from "./OtpInput"; 
 
 export default function ForgotPassword() {
   const [step, setStep] = useState("EMAIL");
@@ -21,28 +15,86 @@ export default function ForgotPassword() {
   const [phrase, setPhrase] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
- 
   const [isLoading, setIsLoading] = useState(false);
   const [recoveryMeta, setRecoveryMeta] = useState(null);
-  const [sessionToken, setSessionToken] = useState(""); // single token state
+  const [sessionToken, setSessionToken] = useState("");
+  const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
 
-  const inputRefs = useRef([]);
+  const otpRefs = useRef([]);
 
-  const getToken = () => sessionToken?.trim(); // helper
-
-    const notify = {
+  const notify = {
     success: (msg) => toast.success(msg),
     error: (msg) => toast.error(msg),
     info: (msg) => toast.info(msg),
   };
 
+  // ====================== PASSWORD VALIDATION ======================
+  const passwordRules = {
+    length: { test: (pw) => pw.length >= 8, message: "At least 8 characters" },
+    lowercase: { test: (pw) => /[a-z]/.test(pw), message: "One lowercase letter" },
+    number: { test: (pw) => /[0-9]/.test(pw), message: "One number" },
+    special: { test: (pw) => /[!@#$%^&*(),.?":{}|<>]/.test(pw), message: "One special character" },
+  };
 
+  const checkPassword = (pw) => {
+    return Object.keys(passwordRules).map((key) => ({
+      ...passwordRules[key],
+      valid: passwordRules[key].test(pw || ""),
+    }));
+  };
+
+  // Get password hints (only show failed rules when user starts typing)
+  const passwordHints = checkPassword(newPassword);
+
+  // ====================== EMAIL HANDLERS ======================
+  const handleEmailChange = (e) => {
+    let value = e.target.value.trim().toLowerCase();
+    value = value.replace(/[^a-z0-9@._+\-]/g, '');
+    setEmail(value);
+    setEmailError("");
+  };
+
+  // ====================== OTP HANDLERS ======================
+  const handleOtpChange = (index, value) => {
+    if (!/^\d?$/.test(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pasted) return;
+    const newOtp = pasted.split("").concat(Array(6 - pasted.length).fill(""));
+    setOtp(newOtp);
+  };
+
+  // ====================== API FUNCTIONS ======================
   const submitEmail = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setError("");
+    setEmailError("");
 
+    if (!email || emailError) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
     try {
-      const res = await api.post("/auth/forgot-password", { email: email.toLowerCase().trim() });
+      const res = await api.post("/auth/forgot-password", { email });
 
       if (res.data.next === "TOTP_REQUIRED") {
         setStep("TOTP");
@@ -52,9 +104,7 @@ export default function ForgotPassword() {
         if (!recoveryToken) throw new Error("No session token received");
 
         setSessionToken(recoveryToken);
-
         const metaRes = await api.get("/auth/recovery-metadata", {
-          
           headers: { Authorization: `Bearer ${recoveryToken}` },
         });
 
@@ -65,65 +115,53 @@ export default function ForgotPassword() {
         notify.info(res.data.message);
       }
     } catch (err) {
-      notify.error(
-        err.response?.data?.message ||
-        "Email not found or recovery not enabled"
-      );
-
+      const msg = err.response?.data?.message || "Email not found or recovery not enabled";
+      setError(msg);
+      notify.error(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const submitOtp = async (e) => {
-  if (e) e.preventDefault(); // ✅ handle both button + auto-submit
+  const submitOtp = async () => {
+    setIsLoading(true);
+    setError("");
+    const sanitizedOtp = otp.join("").replace(/\D/g, "");
 
-  setIsLoading(true);
-
-  // ✅ Convert array → string and clean
-  const sanitizedOtp = otp.join("").replace(/\D/g, "");
-
-  // ✅ Validate
-  if (sanitizedOtp.length !== 6) {
-    notify.error("OTP must be exactly 6 digits");
-    setIsLoading(false);
-    return;
-  }
-
-  try {
-    const res = await api.post("/auth/forgot-password/verify", {
-      email: email.trim().toLowerCase(),
-      otp: sanitizedOtp,
-    });
-
-    if (res.data.verificationStatus !== "success") {
-      throw new Error("Invalid code");
+    if (sanitizedOtp.length !== 6) {
+      notify.error("OTP must be exactly 6 digits");
+      setIsLoading(false);
+      return;
     }
 
-    const recoveryToken = res.data.recoverySession?.trim();
-    if (!recoveryToken) throw new Error("No recovery session token received");
+    try {
+      const res = await api.post("/auth/forgot-password/verify", {
+        email: email.trim().toLowerCase(),
+        otp: sanitizedOtp,
+      });
 
-    setSessionToken(recoveryToken);
+      if (res.data.verificationStatus !== "success") throw new Error("Invalid code");
 
-    const metaRes = await api.get("/auth/recovery-metadata", {
-      headers: { Authorization: `Bearer ${recoveryToken}` },
-    });
+      const recoveryToken = res.data.recoverySession?.trim();
+      if (!recoveryToken) throw new Error("No recovery session token received");
 
-    setRecoveryMeta(metaRes.data);
-    setStep("PHRASE");
+      setSessionToken(recoveryToken);
 
-    notify.success("Code verified. Enter your recovery phrase.");
-  } catch (err) {
-    notify.error(
-      err.response?.data?.message ||
-      err.message ||
-      "Invalid authenticator code"
-    );
-  } finally {
-    setIsLoading(false);
-  }
-};
-   
+      const metaRes = await api.get("/auth/recovery-metadata", {
+        headers: { Authorization: `Bearer ${recoveryToken}` },
+      });
+
+      setRecoveryMeta(metaRes.data);
+      setStep("PHRASE");
+      notify.success("Code verified successfully");
+    } catch (err) {
+      const msg = err.response?.data?.message || "Invalid authenticator code";
+      setError(msg);
+      notify.error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const submitPhrase = async (e) => {
     e.preventDefault();
@@ -131,18 +169,14 @@ export default function ForgotPassword() {
       notify.error("Recovery phrase must be exactly 12 words");
       return;
     }
-
     setIsLoading(true);
-
+    setError("");
     try {
-      await unwrapWithRecovery(
-        phrase.trim(),
-        recoveryMeta.wrappedMasterKey,
-        recoveryMeta.nonce
-      );
+      await unwrapWithRecovery(phrase.trim(), recoveryMeta.wrappedMasterKey, recoveryMeta.nonce);
       setStep("NEW_PASSWORD");
       notify.success("Recovery phrase accepted! Set your new password.");
     } catch (err) {
+      setError("Invalid recovery phrase");
       notify.error("Invalid recovery phrase");
     } finally {
       setIsLoading(false);
@@ -150,316 +184,305 @@ export default function ForgotPassword() {
   };
 
   const submitNewPassword = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
+    setError("");
 
-  if (newPassword.length < 8) {
-    notify.error("Password must be at least 8 characters");
-    return;
-  }
-  if (newPassword !== confirmPassword) {
-    notify.error("Passwords do not match");
-    return;
-  }
+    // Check password strength
+    const failedRules = passwordHints.filter(rule => !rule.valid).map(rule => rule.message);
+    if (failedRules.length > 0) {
+      notify.error(failedRules.join(" • "));
+      return;
+    }
 
-  const token = getToken();
-  if (!token) {
-    notify.error("Session expired — please start over");
-    return;
-  }
+    // Check password match
+    if (newPassword !== confirmPassword) {
+      notify.error("Passwords do not match!");
+      return;
+    }
 
-  setIsLoading(true);
+    if (!sessionToken) {
+      notify.error("Session expired — please start over");
+      return;
+    }
 
+    setIsLoading(true);
+    try {
+      const masterKey = await unwrapWithRecovery(
+        phrase.trim(),
+        recoveryMeta.wrappedMasterKey,
+        recoveryMeta.nonce
+      );
 
-  try {
-    const masterKey = await unwrapWithRecovery(
-      phrase.trim(),
-      recoveryMeta.wrappedMasterKey,
-      recoveryMeta.nonce
-    );
+      const vaultWrap = await rotateVaultPassword(masterKey, newPassword);
+      const recoveryWrap = await wrapMasterKeyWithRecovery(masterKey, phrase.trim());
 
-    console.log("Unwrapped masterKey (length):", masterKey.length); // Debug
+      await api.post(
+        "/auth/forgot-password/reset",
+        {
+          newPassword,
+          encryptedMasterKey: vaultWrap.encryptedMasterKey,
+          masterNonce: vaultWrap.masterNonce,
+          argonSalt: vaultWrap.argonSalt,
+          newWrappedMasterKey: recoveryWrap.wrappedMasterKey,
+          newSalt: recoveryWrap.salt,
+          newNonce: recoveryWrap.nonce,
+        },
+        { headers: { Authorization: `Bearer ${sessionToken}` } }
+      );
 
-    // 1️⃣ rewrap for VAULT
-    const vaultWrap = await rotateVaultPassword(masterKey, newPassword);
-    console.log("New vault wrap:", vaultWrap); // Debug new wrap
+      setStep("SUCCESS");
+      notify.success("Password reset successful! Redirecting to login...");
+      
+      setTimeout(() => window.location.href = "/login", 2500);
+    } catch (err) {
+      const msg = err.response?.data?.message || "Failed to reset password";
+      setError(msg);
+      notify.error(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    // 2️⃣ rewrap for RECOVERY
-    const recoveryWrap = await wrapMasterKeyWithRecovery(
-      masterKey,
-      phrase.trim()
-    );
+  // ====================== MOTION VARIANTS ======================
+  const containerVariants = {
+    hidden: { opacity: 0, scale: 0.8, y: 20 },
+    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
+  };
 
-    await api.post(
-      "/auth/forgot-password/reset",
-      {
-        newPassword,
-        encryptedMasterKey: vaultWrap.encryptedMasterKey,
-        masterNonce: vaultWrap.masterNonce,
-        argonSalt: vaultWrap.argonSalt,
+  return (
+    <div className="relative w-full min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-purple-950">
+      {/* Background Elements */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-blue-950 to-slate-900" />
+        <motion.div className="absolute top-10 left-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-3xl opacity-25"
+          animate={{ x: [0, 100, 0], y: [0, 60, 0] }} transition={{ duration: 12, repeat: Infinity }} />
+        <motion.div className="absolute -bottom-20 right-1/4 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-3xl opacity-20"
+          animate={{ x: [0, -80, 0], y: [0, -50, 0] }} transition={{ duration: 14, repeat: Infinity }} />
+        <motion.div className="absolute top-1/3 -right-20 w-80 h-80 bg-indigo-500 rounded-full mix-blend-screen filter blur-3xl opacity-15"
+          animate={{ x: [0, 60, 0], y: [0, -80, 0] }} transition={{ duration: 16, repeat: Infinity }} />
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(68,68,68,.05)_25%,rgba(68,68,68,.05)_50%,transparent_50%,transparent_75%,rgba(68,68,68,.05)_75%,rgba(68,68,68,.05))] bg-[length:60px_60px]" />
+      </div>
 
-        
-        // recovery stays unchanged
-        newWrappedMasterKey: recoveryWrap.wrappedMasterKey,
-        newSalt: recoveryWrap.salt,
-        newNonce: recoveryWrap.nonce,
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    setStep("SUCCESS");
-    notify.success("Password reset successful! Redirecting to login...");
-
-    lockVault();
-
-    setTimeout(() => {
-      window.location.href = "/login";
-    }, 3000);
-  } catch (err) {
-    console.error("Reset error:", err.response || err);
-    notify.error(
-      err.response?.data?.message ||
-      "Failed to reset password. Please check your recovery phrase and try again."
-    );
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-
-// const copyPhrase = () => {
-//   navigator.clipboard.writeText(phrase);
-//   notify.success("Copied to clipboard!");
-//   setTimeout(() => notify.clear(), 2000);
-// };
-
-
-return (
-    <div className="min-h-screen flex flex-col md:flex-row items-center justify-between bg-black px-8 md:px-16 gap-10">
-
-        {/* Image Section */}
-        <div className="flex items-center justify-center bg-linear-to-br from-sky-400 to-cyan-500 p-10 rounded-3xl shadow-xl">
-          <div className="relative">
-            {/* Glow */}
-            <div className="absolute inset-0 bg-white/30 blur-3xl rounded-full" />
-
-              {/* Image */}
-              <img
-                src="/forgot.png"
-                alt="Forgot Password Illustration"
-                className="relative max-w-base w-full md:h-auto rounded-2xl "
-              />
-          </div>
+      {/* Decorative 3D Elements */}
+      <motion.div className="absolute top-1/4 left-8 hidden lg:block" animate={{ y: [0, 30, 0], rotate: [0, 10, 0] }} transition={{ duration: 8, repeat: Infinity }}>
+        <div className="relative w-24 h-24">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-lg opacity-80 transform -rotate-12 shadow-2xl" />
+          <div className="absolute inset-2 bg-gradient-to-br from-cyan-300 to-blue-400 rounded-lg transform rotate-6" />
         </div>
+      </motion.div>
 
+      <motion.div className="absolute top-1/3 right-12 hidden lg:block" animate={{ y: [0, -40, 0], rotate: [0, -15, 0] }} transition={{ duration: 10, repeat: Infinity }}>
+        <div className="relative w-32 h-32">
+          <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 rounded-full opacity-70 shadow-2xl blur-sm" />
+          <div className="absolute inset-4 bg-gradient-to-tr from-pink-300 to-purple-400 rounded-full opacity-60" />
+        </div>
+      </motion.div>
 
-        <div className="w-full md:w-2/3 lg:w-1/2 max-w-xl mx-auto">
+      {/* Main Glass Card */}
+      <motion.div className="relative z-10 w-full max-w-md" variants={containerVariants} initial="hidden" animate="visible">
+        <motion.div className="bg-gradient-to-br from-white/20 via-white/10 to-white/5 backdrop-blur-2xl rounded-3xl p-8 shadow-2xl border border-white/30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 via-transparent to-purple-400/5 rounded-3xl pointer-events-none" />
 
-          <div className="bg-black/40 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-8 shadow-2xl shadow-cyan-500/20 min-h-[500px]">
-         <div className="text-center mb-10">
-          <h1
-            className={`font-extrabold tracking-tight text-white
-              ${step === "EMAIL" ? "text-4xl md:text-5xl" : "text-2xl md:text-3xl"}
-            `}
-            >
-            {step === "EMAIL" && "Forgot Password"}
-            {step === "TOTP" && "Verify Authenticator"}
-            {step === "PHRASE" && "Recovery Phrase"}
-            {step === "NEW_PASSWORD" && "Set New Password"}
-            {step === "SUCCESS" && "Success!"}
-          </h1>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <motion.div className="flex justify-center mb-6" initial={{ scale: 0.5 }} animate={{ scale: 1 }}>
+              <div className="p-4 bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 rounded-full shadow-lg">
+                <Lock className="w-9 h-9 text-white" />
+              </div>
+            </motion.div>
 
-          {step === "EMAIL" && (
-            <p className="mt-5 text-slate-300 text-sm md:text-base">
-              Don’t worry — we’ll help you get back in securely.
+            <h2 className="text-4xl font-black text-white mb-3 tracking-tight bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text">
+              {step === "EMAIL" && "Reset Your Password"}
+              {step === "TOTP" && "Verify Authenticator"}
+              {step === "PHRASE" && "Recovery Phrase"}
+              {step === "NEW_PASSWORD" && "Set New Password"}
+              {step === "SUCCESS" && "Success!"}
+            </h2>
+            <p className="text-white/60 text-base">
+              {step === "EMAIL" && "Don’t worry, we’ll help you to get back your account securely."}
+              {step === "TOTP" && <>Enter the 6-digit code from your <span className="text-blue-400 font-bold">Authenticator App</span></>}
+              {step === "PHRASE" && "Enter your 12-word recovery phrase"}
+              {step === "NEW_PASSWORD" && "Create a strong new password"}
             </p>
-          )}
-        </div>
+          </div>
 
-         
-
+          {/* Form */}
           <form onSubmit={
             step === "EMAIL" ? submitEmail :
-            step === "TOTP" ? submitOtp :
             step === "PHRASE" ? submitPhrase :
-            step === "NEW_PASSWORD" ? submitNewPassword :
-            null
+            step === "NEW_PASSWORD" ? submitNewPassword : (e) => e.preventDefault()
           } className="space-y-6">
 
+            {/* Email Field */}
             {step === "EMAIL" && (
-              <div className="relative">
-                <Mail className="absolute left-18 top-3/4 -translate-y-1/2 text-emerald-400 w-5 h-5" />
-                <input
-                  type="email"
-                  placeholder="Your registered email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="mt-13 ml-15 w-3/4 pl-12 pr-4 py-3 bg-black/20 border border-cyan-500/30 rounded-lg text-white placeholder-white/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 transition"
-                />
+              <div className="space-y-2">
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={handleEmailChange}
+                    placeholder="your@email.com"
+                    className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30"
+                    disabled={isLoading}
+                  />
+                </div>
+                {emailError && (
+                  <p className="text-red-400 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" /> {emailError}
+                  </p>
+                )}
               </div>
             )}
 
-       {step === "TOTP" && (
-  <div className="flex flex-col items-center gap-4">
-    <p className="text-center text-gray-400 text-sm mb-2.5">
-      Enter the 6-digit code from your authenticator app to verify your identity.
-    </p>
+            {/* OTP Field */}
+            {step === "TOTP" && (
+              <div className="space-y-4">
+                {/* <p className="text-center text-white/70 text-sm">Enter 6-digit code from your authenticator app</p> */}
+                <div className="flex justify-center gap-3" onPaste={handleOtpPaste}>
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => (otpRefs.current[index] = el)}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      disabled={isLoading}
+                      className="w-14 h-16 text-center text-4xl font-bold bg-white/10 border border-white/40 rounded-2xl text-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/50 transition-all"
+                      autoFocus={index === 0}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
 
-    <div
-      className="grid grid-cols-6 gap-2 sm:gap-3 w-full max-w-sm mx-auto"
-      onPaste={(e) => {
-        const paste = e.clipboardData
-          .getData("text")
-          .replace(/\D/g, "")
-          .slice(0, 6);
-
-        if (!paste) return;
-
-        const newOtp = paste.split("");
-        const fullOtp = [...newOtp, ...Array(6 - newOtp.length).fill("")];
-
-        setOtp(fullOtp);
-
-        // focus last filled input
-        setTimeout(() => {
-          inputRefs.current[paste.length - 1]?.focus();
-        }, 0);
-      }}
-    >
-      {otp.map((digit, index) => (
-        <input
-          key={index}
-          ref={(el) => (inputRefs.current[index] = el)}
-          value={digit}
-          disabled={isLoading}
-          maxLength={1}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          onChange={(e) => {
-            const value = e.target.value.replace(/\D/g, "");
-
-            const newOtp = [...otp];
-            newOtp[index] = value.slice(-1);
-            setOtp(newOtp);
-
-            if (value && index < 5) {
-              inputRefs.current[index + 1]?.focus();
-            }
-
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Backspace") {
-              if (!otp[index] && index > 0) {
-                inputRefs.current[index - 1]?.focus();
-              }
-            }
-          }}
-          className="aspect-3/4 w-full text-center text-base sm:text-xl
-            font-bold rounded-xl bg-black/30
-            border border-cyan-500/40
-            focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/40
-            text-white transition"
-                // ✅ Autofocus first input when TOTP step appears
-          autoFocus={index === 0}
-        />
-      ))}
-    </div>
-  </div>
-)}
-           {step === "PHRASE" && (
+            {/* Recovery Phrase */}
+            {step === "PHRASE" && (
               <>
               <textarea
-                placeholder="Enter your 12-word recovery phrase (space-separated)"
                 value={phrase}
-                rows={4}
-                required
-                onChange={(e) => {
-                  // normalize while typing (optional but safe)
-                  const cleaned = e.target.value.replace(/\s+/g, " ");
-                  setPhrase(cleaned);
-                }}
-                onPaste={(e) => {
-                  e.preventDefault();
-
-                  const pastedText = e.clipboardData.getData("text");
-
-                  // 🔑 Normalize pasted content (PDF-safe)
-                  const normalized = pastedText
-                    .trim()
-                    .replace(/\s+/g, " "); // replaces newlines, tabs, multiple spaces
-
-                  setPhrase(normalized);
-                }}
-                className="w-full p-4 bg-black/20 border border-cyan-500/30 rounded-lg
-                  text-orange-300 placeholder-white/30
-                  focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30
-                  transition font-sans text-base tracking-wide"
+                onChange={(e) => setPhrase(e.target.value.replace(/\s+/g, " "))}
+                placeholder="Ex: word1 word2 word3 ... word12"
+                rows={5}
+                className="w-full p-5 bg-white/10 border border-white/30 rounded-2xl placeholder-white/50 focus:outline-none focus:border-blue-400 resize-y min-h-[160px] text-sm focus:ring-2 focus:ring-blue-400/30 transition-all text-orange-300 font-bold"
+                disabled={isLoading}
               />
-
-              {/* Optional helper */}
-              <p className="mt-2 text-xs text-slate-300 text-center">
-                Tip: You can paste directly from a PDF — formatting will be fixed automatically.
-              </p>
+                {/* Tip for pasting from PDF */}
+                <p className="mt-2 text-sm text-slate-300 text-center">
+                    Tip: Enter Copy - Paste format from your backup PDF for best results.                
+                    </p>
               </>
             )}
 
+            {/* New Password Fields with Live Validation */}
             {step === "NEW_PASSWORD" && (
-              <>
-                <input
-                  type="password"
-                  placeholder="New password (min 8 characters)"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="ml-15 mb-10 w-3/4 px-4 py-3 bg-black/20 border border-cyan-500/30 rounded-lg text-white placeholder-white/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 transition"
-                />
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  className="ml-15 w-3/4 mb-15 px-4 py-3 bg-black/20 border border-cyan-500/30 rounded-lg text-white placeholder-white/30 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/30 transition"
-                />
-              </>
-            )}
+              <div className="space-y-5">
+                <div>
+                  <input
+                    type="password"
+                    placeholder="New Password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-5 py-4 bg-white/10 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-blue-400"
+                    disabled={isLoading}
+                  />
+                </div>
 
-            {step === "SUCCESS" && (
-              <div className="text-center py-8">
-                <CheckCircle className="mx-auto h-16 w-16 text-emerald-500 mb-4" />
-                <p className="text-white text-lg">Password reset complete!</p>
-                <p className="text-gray-400 text-sm mt-2">Redirecting to login...</p>
+                <div>
+                  <input
+                    type="password"
+                    placeholder="Confirm New Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-5 py-4 bg-white/10 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:border-blue-400"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {/* Live Password Hints */}
+                {newPassword.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {passwordHints
+                      .filter(rule => !rule.valid)
+                      .map((rule, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center gap-2 text-sm text-red-400"
+                        >
+                          <XCircle className="w-4 h-4 flex-shrink-0" />
+                          <span>{rule.message}</span>
+                        </motion.div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Success State */}
+            {step === "SUCCESS" && (
+              <div className="text-center py-10">
+                <CheckCircle className="mx-auto w-20 h-20 text-emerald-400 mb-6" />
+                <h3 className="text-2xl font-bold text-white">Password Reset Successful!</h3>
+                <p className="text-white/70 mt-2">Redirecting to login page...</p>
+              </div>
+            )}
+
+            {/* {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 p-3 rounded-xl">
+                <AlertCircle className="w-4 h-4" />
+                {error}
+              </div>
+            )} */}
+
+            {/* Submit Button */}
             {step !== "SUCCESS" && (
-              <button
+              <motion.button
                 type="submit"
                 disabled={isLoading}
-                className="ml-15 w-3/4 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 text-black font-bold rounded-lg disabled:opacity-50 hover:shadow-lg hover:shadow-emerald-500/50 transition flex items-center justify-center gap-2 cursor-pointer"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={step === "TOTP" ? submitOtp : undefined}
+                className="mt-6 w-full py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white font-bold rounded-2xl flex items-center justify-center gap-2 disabled:opacity-70 shadow-lg cursor-pointer transition-all disabled:cursor-not-allowed"
               >
-                {isLoading ? "Processing..." :
-                 step === "EMAIL" ? "Continue" :
-                 step === "TOTP" ? "Verify Code" :
-                 step === "PHRASE" ? "Verify Phrase" :
-                 "Reset Password"}
-              </button>
+                {isLoading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    {step === "EMAIL" && "Continue"}
+                    {step === "TOTP" && "Verify Code"}
+                    {step === "PHRASE" && "Verify Phrase"}
+                    {step === "NEW_PASSWORD" && "Reset Password"}
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </motion.button>
             )}
           </form>
 
-          <div className="text-center mt-6">
+          {/* Back to Login */}
+          <div className="text-center mt-8">
             <button
               onClick={() => window.location.href = "/login"}
-              className="text-gray-400 hover:text-emerald-400 text-sm underline transition cursor-pointer"
+              className="text-white/60 hover:text-white transition-colors text-sm"
             >
-              Back to Login
+              ← Back to Login
             </button>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
+      {/* Footer */}
+      <div className="absolute bottom-5 text-white/50 text-xs text-center">
+        © {new Date().getFullYear()} SafeRaho. All rights reserved.
+      </div>
     </div>
   );
 }

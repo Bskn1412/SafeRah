@@ -17,6 +17,8 @@ import EncryptedUploader from "./pages/EncryptUploader";
 import EmailAuth from "./pages/EmailAuth";
 import ContactSection from "./components/ContactSection";
 
+import FPassword from "./components/FPassword";
+
 function App() {
   return (
     <>
@@ -53,6 +55,8 @@ function App() {
         <Route path="/eupload" element={<EncryptedUploader />} />
         <Route path="/email-auth" element={<EmailAuth />} />
         <Route path="/contact" element={<ContactSection />} />
+
+        <Route path="/fpass" element={<FPassword />} />
 
       </Routes>
 
