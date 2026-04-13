@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import { toast } from "react-toastify";
 import emailjs from "@emailjs/browser";
@@ -8,12 +6,16 @@ export default function ContactSection() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const send = async () => {
+    if (loading) return;
+
     if (!name.trim()) {
       toast.error("Name is required");
       return;
     }
+
     if (!email.trim()) {
       toast.error("Email is required");
       return;
@@ -24,24 +26,33 @@ export default function ContactSection() {
       return;
     }
 
+    setLoading(true);
+
+    const templateParams = {
+      user_name: name,
+      user_email: email,
+      message: message,
+    };
+
     try {
       await emailjs.send(
-        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
-        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
-        {
-          user_email: email,
-          message: message,
-        },
-        process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+        import.meta.env.VITE_EMAILJS_SERVICE_ID,
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY,
       );
 
-      toast.success("Message sent!");
+      toast.success("Message sent successfully!");
+
+      // reset form
       setName("");
-      setMessage("");
       setEmail("");
-    }catch (err) {
+      setMessage("");
+    } catch (err) {
       console.error("EmailJS Error:", err);
-      toast.error("Failed to send");
+      toast.error("Failed to send message");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,11 +97,12 @@ export default function ContactSection() {
         />
 
         <button
-          onClick={send}
-          className="mt-5 px-6 py-2 rounded-lg bg-linear-to-r from-cyan-400 to-blue-500 text-black font-semibold hover:scale-105 transition cursor-pointer"
-        >
-          Send Message
-        </button>
+            onClick={send}
+            disabled={loading}
+            className="mt-5 px-6 py-2 rounded-lg bg-linear-to-r from-cyan-400 to-blue-500 text-black font-semibold hover:scale-105 transition disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed "
+          >
+            {loading ? "Sending..." : "Send Message"}
+          </button>
 
       </div>
     </section>
