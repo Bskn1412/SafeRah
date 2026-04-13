@@ -25,19 +25,13 @@ export const authMiddleware = (req, res, next) => {
   //   }
   // }
 
-  // 2. Fallback to cookie if no valid header token
-  if (!token && req.cookies?.token) {
-      token = req.cookies.token.trim();
-    console.log("Using token from cookie:", token.substring(0, 30) + "...");
-  }
-
   if (!token) {
     console.log("No valid token found");
     return res.status(401).json({ message: "Not authenticated" });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"], });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     // console.log("Token decoded successfully:", decoded);
     req.user = decoded;
     next();
