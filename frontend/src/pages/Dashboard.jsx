@@ -561,7 +561,6 @@ const openInfoModal = async (file) => {
       setStatus("Unlocking...");
 
       await unlockVault(vaultPassword);
-      console.log("Vault unlocked with password bjksajhdvkdgkdsjdpdkla:", vaultPassword);
 
       setUnlocked(true);
       setVaultPassword("");

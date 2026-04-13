@@ -1,20 +1,11 @@
+import { Resend } from "resend";
 import dotenv from "dotenv";
+
 dotenv.config();
 
-import nodemailer from "nodemailer";
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Gmail SMTP transporter
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  host: "smtp.gmail.com",
-  port: 465,          // SSL
-  secure: true,       // true for 465, false for 587
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
+// OTP generator (UNCHANGED)
 export function generateOtp(length = 6) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   let otp = "";
@@ -26,6 +17,7 @@ export function generateOtp(length = 6) {
   return otp;
 }
 
+// SEND OTP EMAIL (RESEND VERSION)
 export async function sendOtpEmail(email, otp) {
   const htmlContent = `
   <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 30px;">
@@ -75,23 +67,17 @@ export async function sendOtpEmail(email, otp) {
 </div>
 `;
 
-  transporter.sendMail({
-    to: email,
-    from: {
-      address: process.env.EMAIL_USER,
-      name: "SafeRaho",
-    },
-    subject: "Your SafeRaho verification code",
-    text: `
-    Hello,
+  try {
+    const result = await resend.emails.send({
+      from: import.meta.env.RESEND_FROM_EMAIL,
+      to: email,
+      subject: "Your SafeRaho verification code",
+      html: htmlContent,
+    });
 
-    Your SafeRaho verification code is: ${otp.split("").join(" ")} 
-    This code will expire in 10 minutes. 
-    If you did not request this code, please ignore this email.
-
-    Regards,
-    SafeRaho Team
-  `,
-    html: htmlContent,
-  });
+    return result;
+  } catch (err) {
+    console.error("Resend Error:", err);
+    throw err;
+  }
 }
