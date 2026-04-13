@@ -14,6 +14,13 @@ oAuth2Client.setCredentials({
   refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 });
 
+
+console.log("CLIENT_ID:", process.env.GOOGLE_CLIENT_ID);
+console.log("CLIENT_SECRET:", process.env.GOOGLE_CLIENT_SECRET);
+console.log("REDIRECT_URI:", process.env.GOOGLE_REDIRECT_URI);
+console.log("REFRESH_TOKEN:", process.env.GOOGLE_REFRESH_TOKEN);
+
+
 const gmail = google.gmail({ version: "v1", auth: oAuth2Client });
 
 // OTP GENERATOR (UNCHANGED)
@@ -119,7 +126,7 @@ export async function sendOtpEmail(email, otp) {
 
     return result;
   } catch (err) {
-    console.error("Gmail API Error:", err);
+    console.error("FULL ERROR:", err.response?.data || err.message || err);
     throw err;
   }
 }
