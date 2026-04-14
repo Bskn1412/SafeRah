@@ -1,38 +1,49 @@
+// backend/middleware/authMiddleware.js
+
 import jwt from "jsonwebtoken";
 
 export const authMiddleware = (req, res, next) => {
-  let token = null;
+  let token = req.cookies?.token?.trim(); // Start with cookie token if available
 
-  // ✅ 1. Try cookie
-  if (req.cookies?.token) {
-    token = req.cookies.token.trim();
-  }
+  // 1. Try Authorization header (Bearer token)
+  // const authHeader = req.headers.authorization;
+  // if (authHeader) {
+  // console.log(`[authMiddleware] Route ${req.method} ${req.originalUrl} - Full Authorization header:`, authHeader);
 
-  // ✅ 2. Try Authorization header (IMPORTANT for production)
-  const authHeader = req.headers.authorization;
-
-  if (!token && authHeader) {
-    const parts = authHeader.split(" ");
-
-    if (parts[0] === "Bearer" && parts[1]) {
-      token = parts[1];
-    }
-  }
+  //   // Split on any whitespace, ignore case
+  //   const parts = authHeader.trim().split(/\s+/);
+  //   if (parts.length >= 2 && parts[0].toLowerCase() === "bearer") {
+  //     const headerToken = parts[1].trim();
+  //     if (headerToken && headerToken !== "undefined" && headerToken.length > 20) {
+  //       token = headerToken;
+  //       console.log("Using Bearer token from header:", token.substring(0, 30) + "...");
+  //     } else {
+  //       console.log("Rejected Bearer token (empty, undefined, or too short)");
+  //     }
+  //   } else {
+  //     console.log("Invalid Authorization format");
+  //   }
+  // }
 
   if (!token) {
-    console.log("No valid token found");
+    console.log("No valid token found", token);
     return res.status(401).json({ message: "Not authenticated" });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // console.log("Token decoded successfully:", decoded);
     req.user = decoded;
     next();
   } catch (err) {
     console.error("JWT verification failed:", err.message);
+    console.error("Bad token was:", token.substring(0, 30) + "...");
     return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
+
+
+
 
 
 
@@ -49,7 +60,6 @@ export const authMiddleware = (req, res, next) => {
 //     return res.status(401).json({ message: "Invalid token" });
 //   }
 // };
-
 
 
 

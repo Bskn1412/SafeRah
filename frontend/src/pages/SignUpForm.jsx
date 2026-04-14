@@ -179,19 +179,7 @@ export default function SignupForm({ textVariants }) {
         </motion.button>
     </motion.form>
 
-      {/* Recovery modal */}
-      <RecoveryModel
-        show={showRecovery}
-        words={words}
-        confirmed={confirmed}
-        setConfirmed={setConfirmed}
-        recoveryLoading={recoveryLoading}
-        onCopy={handleCopyPhrase}
-        onDownload={handleDownloadPDF}
-        onConfirm={handleConfirmRecovery}
-      />
-
-      {/* Email OTP Verification Form */}
+     {/* Email OTP Verification Form */}
         <EmailAuth
           email={form.email}
           handleVerifyOtp={handleVerifyOtp}
@@ -204,6 +192,18 @@ export default function SignupForm({ textVariants }) {
           resendTimer={resendTimer}
           handleResendOtp={handleResendOtp}
         />
+
+      {/* Recovery modal */}
+      <RecoveryModel
+        show={showRecovery}
+        words={words}
+        confirmed={confirmed}
+        setConfirmed={setConfirmed}
+        recoveryLoading={recoveryLoading}
+        onCopy={handleCopyPhrase}
+        onDownload={handleDownloadPDF}
+        onConfirm={handleConfirmRecovery}
+      />
  </>
   );
 }

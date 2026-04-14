@@ -562,7 +562,9 @@ export const verifyEmail = async (req, res) => {
   res.cookie("token", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "None",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   res.json({
@@ -615,14 +617,16 @@ export const logout = (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
     secure: true,
-    sameSite: "Strict",
+    sameSite: "None",
+    path: "/",
     expires: new Date(0),
   });
 
   res.cookie("refreshToken", "", {
     httpOnly: true,
     secure: true,
-    sameSite: "Strict",
+    sameSite: "None",
+    path: "/",
     expires: new Date(0),
   });
 
@@ -667,7 +671,8 @@ export const refreshTokenHandler = async (req, res) => {
     res.cookie("token", newAccessToken, {
       httpOnly: true,
       secure: true,
-      sameSite: "Strict",
+      sameSite: "None",
+      path: "/",
       maxAge: 15 * 60 * 1000,
     });
 
@@ -675,6 +680,7 @@ export const refreshTokenHandler = async (req, res) => {
       httpOnly: true,
       secure: true,
       sameSite: "None",
+      path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 

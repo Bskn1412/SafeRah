@@ -38,7 +38,7 @@ const verifyLimiter = rateLimit({
 // Rate limit for login (10 attempts/15min)
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 3,
   message: "Too many login attempts. Try again later.",
 });
 
