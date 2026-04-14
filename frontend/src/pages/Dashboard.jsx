@@ -22,8 +22,9 @@ import "../global.css";
 import { encryptFileChunks } from "../crypto/chunks"; // <-- your chunked encrypt function
 import { v4 as uuidv4 } from "uuid"; // to generate uploadId
 import { decryptChunk } from "../crypto/files";
-import ProfileDropdown from "./Profile";
+import ProfileDropdown from "./ProfileDropdown";
 import { UploadManager } from "./uploadManager";
+import { toast } from "react-toastify";
 
 // For Vercel through Render
 const API = import.meta.env.VITE_API_URL;
@@ -162,7 +163,7 @@ export default function Dashboard() {
     if (!res.ok) throw new Error("List failed");
 
     const data = await res.json();
-    console.log("📥 Files received from backend:", data);
+    // console.log("📥 Files received from backend:", data);
 
     setUploadedFiles(data);
   } catch (err) {
@@ -572,7 +573,7 @@ const openInfoModal = async (file) => {
 
       setStatus("Unlocked");
     } catch (err) {
-      setUnlockError("We couldn’t verify your info. Try again, your data was not shared.");
+      toast.error("We couldn’t verify your info. Try again, your data was not shared.");
       setStatus("Incorrect password");
     }
   };
@@ -707,9 +708,9 @@ useEffect(() => {
       const duration = performance.now() - start;
 
       setPing(Math.round(duration));
-      console.log(
-        `Ping duration: ${duration}ms, effectiveType: ${connection.effectiveType}`
-      );
+      // console.log(
+      //   `Ping duration: ${duration}ms, effectiveType: ${connection.effectiveType}`
+      // );
 
       if (["slow-2g", "2g"].includes(connection.effectiveType) || duration > 1000) {
         setIsSlow(true);

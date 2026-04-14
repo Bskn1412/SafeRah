@@ -177,7 +177,7 @@ router.get("/list", async (req, res) => {
   try {
     const accountId = req.user.id;
 
-    console.log("📄 Listing files for account:", accountId);
+    // console.log("📄 Listing files for account:", accountId);
 
     const files = await sanity.fetch(
       `
@@ -192,7 +192,7 @@ router.get("/list", async (req, res) => {
       { accountId }
     );
 
-    console.log("📄 Files found:", files.length);
+    // console.log("📄 Files found:", files.length);
 
     res.json(
       files.map(f => ({
@@ -301,7 +301,7 @@ router.delete("/delete", async (req, res) => {
       }
     }
 
-    console.log("🗑️ File deleted", { id, assets: assetRefs.length });
+    // console.log("🗑️ File deleted", { id, assets: assetRefs.length });
 
     res.json({ ok: true });
   } catch (err) {
