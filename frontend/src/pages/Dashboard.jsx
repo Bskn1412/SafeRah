@@ -1282,8 +1282,10 @@ if (!unlocked) {
                       <span className="text-slate-400">Size</span>
                       <span className="text-slate-300 font-medium">
                         {f.size
-                          ? `${(f.size / 1024 / 1024).toFixed(2)} MB`
-                          : "—"}
+                          ? f.size > 1024 * 1024
+                            ? `${(f.size / 1024 / 1024).toFixed(2)} MB`
+                            : `${(f.size / 1024).toFixed(1)} KB`
+                          : "0 B"}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
