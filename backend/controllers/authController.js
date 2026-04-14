@@ -115,7 +115,7 @@ export const login = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        code: "INVALID_CREDENTIALS",
+        code: "EMAIL_NOT_FOUND",
         message: "Email not found in our records!",
       });
     }

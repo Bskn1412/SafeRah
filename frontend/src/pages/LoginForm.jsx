@@ -19,6 +19,7 @@ export default function LoginForm({ textVariants }) {
   INVALID_CREDENTIALS: "Email or password is incorrect",
   ACCOUNT_LOCKED: "Your account is temporarily locked",
   SERVER_ERROR: "Server error. Try again later",
+  EMAIL_NOT_FOUND: "Email not found in our records!"
 };
 
 
