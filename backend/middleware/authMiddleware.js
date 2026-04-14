@@ -26,7 +26,7 @@ export const authMiddleware = (req, res, next) => {
   // }
 
   if (!token) {
-    console.log("No valid token found", token);
+    // console.log("No valid token found", token);
     return res.status(401).json({ message: "Not authenticated" });
   }
 

@@ -51,8 +51,8 @@ app.use(cors({
 
 try {
   await connectDB();
-  await initGridFS();
-  console.log("DB + GridFS initialized");
+  // await initGridFS();
+   console.log("DB initialized");
 } catch (err) {
   console.error("Startup error:", err);
 }

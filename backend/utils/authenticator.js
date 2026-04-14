@@ -92,7 +92,7 @@ const otpauth =
 
 
   // DEBUG (temporary)
-  console.log("OTPAUTH URI:", otpauth);
+  // console.log("OTPAUTH URI:", otpauth);
 
   return {
     encryptedSecret, // store encrypted
@@ -117,12 +117,12 @@ export async function verifyAuthenticator(
     key
   );
 
-  console.log("----- DEBUG 2FA -----");
-  console.log("Token from user:", token);
-  console.log("Decrypted secret:", decryptedSecret);
+  // console.log("----- DEBUG 2FA -----");
+  // console.log("Token from user:", token);
+  // console.log("Decrypted secret:", decryptedSecret);
 
   const check = authenticator.checkDelta(token, decryptedSecret);
-  console.log("Raw checkDelta result:", check);
+  // console.log("Raw checkDelta result:", check);
 
   if (check === null) {
     return { success: false, reason: "invalid", drift: 0 };
