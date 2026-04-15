@@ -311,7 +311,7 @@ export const forgotPassword = async (req, res) => {
 // Verify TOTP (for Forgot/Recovery) - Unchanged
 export const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
-  console.log("Verify OTP called with:", { email, otp });
+  // console.log("Verify OTP called with:", { email, otp });
 
   try {
     const user = await User.findOne({ email });
@@ -351,10 +351,10 @@ export const verifyOtp = async (req, res) => {
       { expiresIn: "5m" }
     );
 
-    console.log(
-      "Recovery token generated (first 30 chars):",
-      recoveryToken.substring(0, 30) + "..."
-    );
+    // console.log(
+    //   "Recovery token generated (first 30 chars):",
+    //   recoveryToken.substring(0, 30) + "..."
+    // );
 
     return res.json({
       recoverySession: recoveryToken,
@@ -372,7 +372,7 @@ export const verifyOtp = async (req, res) => {
 // Recovery Metadata - Accepts both login and recovery tokens
 // backend/controllers/authController.js
 export const recoveryMetadata = async (req, res) => {
-  console.log("RECOVERY METADATA CONTROLLER HIT", req.userId);
+  // console.log("RECOVERY METADATA CONTROLLER HIT", req.userId);
 
   // resetAuth already verified the token
   // and attached req.userId

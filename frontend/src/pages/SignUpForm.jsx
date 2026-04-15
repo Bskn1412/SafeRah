@@ -98,7 +98,7 @@ export default function SignupForm({ textVariants }) {
             name="email"
                     type="email"
                     value={form.email}
-                    // autoComplete="off"
+                    autoComplete="off"
                     placeholder="E-Mail"
                     required
                     onChange={handleChange}

@@ -291,7 +291,7 @@ export default function ForgotPassword() {
               </div>
             </motion.div>
 
-            <h2 className="text-4xl font-black text-white mb-3 tracking-tight bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text">
+            <h2 className="text-2xl sm:text-4xl font-black text-white mb-3 tracking-tight bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text">
               {step === "EMAIL" && "Reset Your Password"}
               {step === "TOTP" && "Verify Authenticator"}
               {step === "PHRASE" && "Recovery Phrase"}
@@ -300,8 +300,8 @@ export default function ForgotPassword() {
             </h2>
             <p className="text-white/60 text-base">
               {step === "EMAIL" && "Don’t worry, we’ll help you to get back your account securely."}
-              {step === "TOTP" && <>Enter the 6-digit code from your <span className="text-blue-400 font-bold">Authenticator App</span></>}
-              {step === "PHRASE" && "Enter your 12-word recovery phrase"}
+              {step === "TOTP" && <>Enter the 6-digit code from your <span className="text-green-400 font-bold">Authenticator App</span></>}
+              {step === "PHRASE" && "Enter your 12-word recovery phrase with one space between each word."}
               {step === "NEW_PASSWORD" && "Create a strong new password"}
             </p>
           </div>
@@ -351,7 +351,7 @@ export default function ForgotPassword() {
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
                       disabled={isLoading}
-                      className="w-14 h-16 text-center text-4xl font-bold bg-white/10 border border-white/40 rounded-2xl text-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/50 transition-all"
+                      className="w-8 h-12 sm:w-14 sm:h-16 text-center text-2xl sm:text-4xl font-bold bg-white/10 border border-white/40 rounded-2xl text-white focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400/50 transition-all"
                       autoFocus={index === 0}
                     />
                   ))}
@@ -372,7 +372,7 @@ export default function ForgotPassword() {
               />
                 {/* Tip for pasting from PDF */}
                 <p className="mt-2 text-sm text-slate-300 text-center">
-                    Tip: Enter Copy - Paste format from your backup PDF for best results.                
+                    <span className="text-yellow-200 font-bold">Tip:</span> Take the Copy - Paste format from your backup PDF for best results.                
                     </p>
               </>
             )}
