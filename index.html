@@ -20,7 +20,7 @@
 
   <!-- Open Graph (for sharing links) -->
   <meta property="og:title" content="SafeRaho – Secure File Encryption Platform" />
-  <meta property="og:description" content="Encrypt your files locally with zero-knowledge security before uploading. Only you can access your data." />
+  <meta property="og:description" content="Encrypt your files over the cloud with zero-knowledge security before uploading. Only you can access your data." />
   <meta property="og:image" content="https://saferaho.vercel.app/logo.png" />
   <meta property="og:url" content="https://saferaho.vercel.app/" />
   <meta property="og:type" content="website" />
@@ -29,10 +29,18 @@
   <link rel="icon" href="/logo.png" />
 </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/frontend/src/main.jsx"></script>
-    <script>
+
+
+
+<body>
+  <noscript>
+    SafeRaho is a zero-knowledge file encryption platform that protects your data using end-to-end encryption.
+  </noscript>
+
+   <div id="root"></div>
+   <script type="module" src="/frontend/src/main.jsx"></script>
+   <script>
   window.process = { env: { NODE_ENV: 'development' } };  // Default to 'development'; override via .env
 </script>
-  </body>
+</body>
 </html>
